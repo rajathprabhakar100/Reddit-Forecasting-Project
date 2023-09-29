@@ -1,3 +1,21 @@
+covid_cases <- read.csv("Covid Data/time_series_covid19_confirmed_US.csv")
+covid_cases <- covid_cases %>% 
+  mutate(across(starts_with("X"), ~ as.numeric(.)))
+colnames(covid_cases) <- gsub("^X", "", colnames(covid_cases))
+crosswalk <- read.csv("modified_crosswalk.csv")
+new_colnames <- gsub("\\.", "_", colnames(crosswalk))
+colnames(crosswalk) <- new_colnames
+new_crosswalk <- crosswalk %>% select(c(FIPS, MSA_Code, MSA_Title))
+
+cases <- left_join(covid_cases, new_crosswalk, by = "FIPS") %>%
+  mutate(across(starts_with("new_crosswalk"), ~ ifelse(is.na(FIPS), "NA", .))) %>% 
+  select(UID, iso2, iso3, code3, FIPS, MSA_Code, MSA_Title, everything())
+cases <- cases %>% 
+  gather(key = "Date", value = "Value", "1.22.20":ncol(cases)) %>% 
+  select(Date, everything()) 
+cases$Date <- as.Date(cases$Date, format = "%m.%d.%y")
+cases <- cases %>% rename(Cases = Value)
+
 ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, city = NULL, state = NULL, 
                            plots = TRUE, lags = "both") {
   #folder path - give name of folder or path to folder
