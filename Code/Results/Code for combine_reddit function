@@ -1,4 +1,11 @@
 #combine city files with allcities filtered data to produce city_clean file
+allcities <- fread("Old Data/liwc22_allcities_fromJan2019toMay2020.csv") 
+allcities <- allcities %>%
+  mutate(Date = as_datetime(created_utc, tz = "America/Chicago") %>% 
+           as_date()) %>%
+  select(-created_utc) %>% 
+  relocate(Date, .after = 4)
+
 combine_reddit <- function(folder_path, allcities, filename) {
   
   # Prepares path of the specific liwc22_ file
