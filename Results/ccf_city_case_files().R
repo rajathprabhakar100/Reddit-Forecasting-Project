@@ -239,5 +239,5 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
     stop("Missing either state or city input")
   }
 }
-ccf_city_case_files("Daily Data", "atlanta_daily.csv", code = "C1206", city = "Atlanta", state = "Georgia")
+
 
