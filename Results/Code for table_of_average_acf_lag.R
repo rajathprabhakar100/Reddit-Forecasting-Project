@@ -1,4 +1,5 @@
-combined <- read_csv("combined_data.csv")
+library(tidyverse)
+combined <- read_csv("Results/CSV Files/combined_data.csv")
 
 combined_negative <- combined %>% filter(Lag <= 0) %>%
   group_by(Variable) %>% 

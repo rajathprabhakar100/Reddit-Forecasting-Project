@@ -1,7 +1,19 @@
+library(tidyverse)
+library(data.table)
+library(readr)
+library(zoo)
+
 covid_cases <- read.csv("Covid Data/time_series_covid19_confirmed_US.csv")
 covid_cases <- covid_cases %>% 
   mutate(across(starts_with("X"), ~ as.numeric(.)))
 colnames(covid_cases) <- gsub("^X", "", colnames(covid_cases))
+
+covid_deaths <- read.csv("Covid Data/time_series_covid19_deaths_US.csv")
+#head(covid_deaths)
+covid_deaths <- covid_deaths %>% 
+  mutate(across(starts_with("X"), ~ as.numeric(.)))
+colnames(covid_deaths) <- gsub("^X", "", colnames(covid_deaths))
+
 crosswalk <- read.csv("modified_crosswalk.csv")
 new_colnames <- gsub("\\.", "_", colnames(crosswalk))
 colnames(crosswalk) <- new_colnames
@@ -16,13 +28,21 @@ cases <- cases %>%
 cases$Date <- as.Date(cases$Date, format = "%m.%d.%y")
 cases <- cases %>% rename(Cases = Value)
 
-ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, city = NULL, state = NULL, 
-                                plots = TRUE, lags = "both") {
+deaths <- left_join(covid_deaths, new_crosswalk, by = "FIPS") %>% 
+  mutate(across(starts_with("new_crosswalk"), ~ ifelse(is.na(FIPS), "NA", .))) %>% 
+  select(UID, iso2, iso3, code3, FIPS, MSA_Code, MSA_Title, everything())
+deaths <- deaths %>% 
+  gather(key = "Date", value = "Value", "1.22.20":ncol(deaths)) %>% 
+  select(Date, everything()) 
+deaths$Date <- as.Date(deaths$Date, format = "%m.%d.%y")
+deaths <- deaths %>% rename(Deaths = Value)  
+
+ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code = NULL, city = NULL,
+                                state = NULL, plots = TRUE, lags = "both") {
   #folder path - give name of folder or path to folder
   #filename - give name of file within folder_path
   #explanatory - if not null, function only runs for one variable. If null, runs for all variables
-  #city - give name of city, like "City", not "city"
-  #state = give name of state, like "State", not "state"
+  #code - give MSA Code starting with C
   #plots - If TRUE, graph plots. If false, don't graph CCF plots. 
   #lags - can be "negative", "positive", or "both"
   
@@ -31,27 +51,18 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, city 
   data <- fread(file_path)
   data$Date <- as.Date(data$Date)
   
-  if (!is.null(city) & !is.null(state)) {
+  if (!is.null(code)) {
+    city_msa_cases <- cases %>% 
+      filter(MSA_Code == code) %>% 
+      group_by(Date) %>% 
+      summarize(Cases = sum(Cases))
     #set up for ccf
-    city_msa_cases <- cases %>%
-      filter(Province_State == state) %>% 
-      filter(grepl(city, MSA_Title, ignore.case = TRUE)) %>%
-      select(-c(1:13))
-    #return(city_msa_cases)
-    column_dates <- as.Date(colnames(city_msa_cases), format = "%m.%d.%y")
-    city_cases <- data.frame(Date = column_dates, Cases = colSums(city_msa_cases))
-    #return(city_cases)
-    
     city_msa_deaths <- deaths %>% 
-      filter(Province_State == state) %>% 
-      filter(grepl(city, MSA_Title, ignore.case = TRUE)) %>% 
-      select(-c(1:14))
-    #return(city_msa_deaths)
-    column_dates_deaths <- as.Date(colnames(city_msa_deaths), format = "%m.%d.%y")
-    city_deaths <- data.frame(Date = column_dates_deaths, Deaths = colSums(city_msa_deaths))
-    #return(city_deaths)
-    
-    city_combined <- left_join(city_cases, city_deaths, by = "Date") %>% 
+      filter(MSA_Code == code) %>% 
+      group_by(Date) %>% 
+      summarize(Deaths = sum(Deaths))
+
+    city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "Date") %>% 
       mutate(Daily_Cases = Cases - lag(Cases, default = 0),
              Daily_Deaths = Deaths - lag(Deaths, default = 0),
              Daily_Cases7 = rollmean(Daily_Cases, k = 7, fill = NA),
@@ -228,3 +239,10 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, city 
     stop("Missing either state or city input")
   }
 }
+ccf_city_case_files("Daily Data", "atlanta_daily.csv", code = "C1206", city = "Atlanta", state = "Georgia")
+
+
+georgia <- cases %>% 
+  filter(Province_State == "Maryland")
+oregon <- cases %>% 
+  filter(Province_State == "Illinois")
