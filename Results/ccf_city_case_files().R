@@ -241,8 +241,3 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
 }
 ccf_city_case_files("Daily Data", "atlanta_daily.csv", code = "C1206", city = "Atlanta", state = "Georgia")
 
-
-georgia <- cases %>% 
-  filter(Province_State == "Maryland")
-oregon <- cases %>% 
-  filter(Province_State == "Illinois")
