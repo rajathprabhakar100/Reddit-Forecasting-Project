@@ -1,3 +1,4 @@
+library(readr)
 atlanta <- ccf_city_files("DailyData", "Atlanta_daily.csv", city = "Atlanta", state = "Georgia", plots = FALSE)
 austin <- ccf_city_files("DailyData", "Austin_daily.csv", city = "Austin", state = "Texas", plots = FALSE)
 boston <- ccf_city_files("DailyData", "boston_daily.csv", city = "Boston", state = "Massachusetts", plots = FALSE)
