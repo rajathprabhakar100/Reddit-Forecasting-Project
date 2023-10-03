@@ -1,4 +1,6 @@
-combined <- read_csv("combined_data.csv")
+library(tidyverse)
+library(readr)
+combined <- read_csv("Results/CSV Files/combined_data.csv")
 city_list <- split(combined, combined$City)
 for (city_name in names(city_list)) {
   assign(city_name, city_list[[city_name]])
@@ -300,3 +302,4 @@ rank_avg <- combined_ranks %>%
   summarize(avg_rank_pos = mean(Positive_Lag_Rank),
             avg_rank_neg = mean(Negative_Lag_Rank))
 fwrite(rank_avg, paste("Average_City_Rank.csv"))
+
