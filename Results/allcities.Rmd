@@ -1,0 +1,41 @@
+---
+title: "Untitled"
+author: "Rajath Prabhakar"
+date: "2023-07-28"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(data.table)
+setwd("C:/Users/14049/Desktop/The Fox Lab")
+
+allcities <- fread("Old Data/liwc22_allcities_fromJan2019toMay2020.csv")
+#library(lubridate)
+allcities$created_utc <- as_datetime(allcities$created_utc, tz = "America/Chicago")
+allcities$created_utc <- date(allcities$created_utc)
+allcities <- rename(allcities, Date = created_utc)
+```
+
+
+```{r}
+unique(allcities$subreddit)
+```
+
+```{r}
+allcities
+```
+```{r}
+allcities %>% filter(subreddit == "Atlanta")
+```
+```{r}
+Atlanta <- read.csv("Reddit Data/liwc22_Atlanta.csv")
+```
+
+
+```{r}
+Atlanta_clean
+```
+```{r}
+allcities
+```
+
