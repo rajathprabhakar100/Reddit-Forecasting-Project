@@ -1,5 +1,7 @@
 # Reddit-Forecasting-Project
 
+## To Do
+* create data frame with cases and deaths combined, also add city that corresponds to MSA Code
 ## MSA Codes
  - Atlanta = C1206
  - Austin = C1242
