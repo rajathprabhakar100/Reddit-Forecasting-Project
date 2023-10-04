@@ -1,7 +1,7 @@
 # Reddit-Forecasting-Project
 
 
-## Link to Original Data
+## Data Provided on Request
 ## Cleaning and Tidying Data
 1. Download files off of Box
 2. combine_reddit().R
