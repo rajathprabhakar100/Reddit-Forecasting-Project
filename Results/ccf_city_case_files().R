@@ -89,7 +89,8 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
                     Lag = Lag[which.max(ACF)]) %>% 
           mutate(Variable = explanatory,
                  City = city,
-                 State = state)
+                 State = state) %>% 
+          select(Variable, City, State, Max_ACF, Lag)
         
         actual_column_name <- colnames(city_combined)[which(colnames(city_combined) == explanatory)]
         
@@ -112,7 +113,8 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
                     Lag = Lag[which.max(ACF)]) %>% 
           mutate(Variable = explanatory, 
                  City = city,
-                 State = state)
+                 State = state) %>% 
+          select(Variable, City, State, Max_ACF, Lag)
         
         actual_column_name <- colnames(city_combined)[which(colnames(city_combined) == explanatory)]
         #if (lags == "negative") {
@@ -147,7 +149,8 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
             group_by(Sign) %>% 
             summarise(Max_ACF = max(ACF), 
                       Lag = Lag[which.max(ACF)]) %>% 
-            mutate(Variable = column)
+            mutate(Variable = column) %>% 
+            select(Variable, City, State, Max_ACF, Lag)
           
           acf_tables_list[[column]] <- acf_table
           
@@ -176,7 +179,8 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
           return(summary_table_positive)
         }
         else {
-          return(combined_acf_table %>% select(-c(1)) %>% mutate(City = city, State = state))
+          return(combined_acf_table %>% select(Variable, City, State, Max_ACF, Lag) %>%
+                   mutate(City = city, State = state))
         }
         
         
@@ -230,8 +234,6 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
           return(combined_acf_table %>% 
                    select(-c(1)) %>% mutate(City = city, State = state))
         }
-        #print(summary_table_negative)
-        #print(summary_table_positive)
       }
     }
   }
