@@ -1,6 +1,12 @@
 # Reddit-Forecasting-Project
 
+
 ## Link to Original Data
+## Cleaning and Tidying Data
+1. Download files off of Box
+2. combine_reddit().R
+3. process_reddit_files().R
+4. ccf_city_case_files().R
 
 ## To Do
 * create data frame with cases and deaths combined, also add city that corresponds to MSA Code
