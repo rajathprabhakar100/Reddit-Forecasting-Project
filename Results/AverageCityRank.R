@@ -301,5 +301,5 @@ rank_avg <- combined_ranks %>%
   group_by(Variable) %>% 
   summarize(avg_rank_pos = mean(Positive_Lag_Rank),
             avg_rank_neg = mean(Negative_Lag_Rank))
-fwrite(rank_avg, paste("Average_City_Rank.csv"))
+fwrite(rank_avg, paste("Results/CSV Files/Average_City_Rank.csv"))
 

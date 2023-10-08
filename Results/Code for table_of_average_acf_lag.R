@@ -12,4 +12,4 @@ combined_positive <- combined %>% filter(Lag > 0) %>%
             Average_Lag_positive = mean(Lag))
 
 table1 <- left_join(combined_positive, combined_negative, by = "Variable")
-fwrite(table1, paste("table_of_average_acf_lag.csv"))
+fwrite(table1, paste("Results/CSV Files/table_of_average_acf_lag.csv"))
