@@ -9,11 +9,8 @@
 4. ccf_city_case_files().R
 
 ## To Do
-* create data frame with cases and deaths combined, also add city that corresponds to MSA Code
-* graphs of all variables by average correlations, average lag, average rank, with each filtered by positive and negative lag
-* for the top 12 variables by average correlation for positive lags, provide a scatter plot that has the lag on the x axis and max correlation  on the y axis with a point for each city
 * for the health and illness variables, plot the covid-19 case count time series alongside the time-series of the variable on the same plot. 18 time-series plots for each one
-
+** 
 ## MSA Codes
  - Atlanta = C1206
  - Austin = C1242

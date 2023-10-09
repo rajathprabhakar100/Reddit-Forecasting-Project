@@ -1,0 +1,27 @@
+---
+title: "Graphs"
+author: "Rajath Prabhakar"
+date: "2023-10-09"
+output: html_document
+---
+```{r}
+library(tidyverse)
+```
+
+```{r}
+rank_avg <- read_csv("Results/CSV Files/Average_City_Rank.csv")
+table1 <- read_csv("Results/CSV Files/table_of_average_acf_lag.csv")
+
+```
+```{r}
+ggplot(table1, aes(x = reorder(Variable,
+                               abs(Average_ACF_positive)),
+                   y = Average_ACF_positive))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average ACF",
+       y = "Variable",
+       title = "Variables by Average Correlations (Positive Lags)")
+
+```
+
