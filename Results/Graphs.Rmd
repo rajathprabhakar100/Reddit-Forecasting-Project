@@ -6,13 +6,22 @@ output: html_document
 ---
 ```{r}
 library(tidyverse)
+library(here)
+
+```
+```{r}
+here::set_here()
 ```
 
 ```{r}
-rank_avg <- read_csv("Results/CSV Files/Average_City_Rank.csv")
-table1 <- read_csv("Results/CSV Files/table_of_average_acf_lag.csv")
-
+rank_avg <- read_csv("CSV Files/Average_City_Rank.csv")
+table1 <- read_csv("CSV Files/table_of_average_acf_lag.csv")
+combined <- read_csv("CSV Files/combined_data.csv")
+reddit_and_cases <- read_csv("CSV Files/reddit_and_cases_deaths.csv")
 ```
+Average Correlation
+
+Positive
 ```{r}
 ggplot(table1, aes(x = reorder(Variable,
                                abs(Average_ACF_positive)),
@@ -22,6 +31,88 @@ ggplot(table1, aes(x = reorder(Variable,
   labs(x = "Average ACF",
        y = "Variable",
        title = "Variables by Average Correlations (Positive Lags)")
+
+```
+
+Negative
+
+```{r}
+ggplot(table1, aes(x = reorder(Variable, -abs(Average_ACF_negative)),
+                   y = Average_ACF_negative))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average ACF",
+       y = "Variable",
+       title = "Variables by Average Correlations (Negative Lags)")
+```
+
+Average Rank
+
+Positive
+
+```{r}
+ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_pos)),
+                     y = avg_rank_pos))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average Rank",
+       y = "Variable",
+       title = "Variables by Average Rank (Positive Lags)")
+```
+
+
+Negative
+
+```{r}
+ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_neg)),
+                     y = avg_rank_neg))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average Rank",
+       y = "Variable",
+       title = "Variables by Average Rank (Negative Lags)")
+```
+
+Average Lag
+
+Positive
+```{r}
+ggplot(table1, aes(x = reorder(Variable, Average_Lag_positive), 
+                   y = Average_Lag_positive))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average Lag",
+       y = "Variable",
+       title = "Variables by Average Lag (Positive Lags)")
+```
+
+Negative
+```{r}
+ggplot(table1, aes(x = reorder(Variable, Average_Lag_negative), 
+                   y = Average_Lag_negative))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average Lag",
+       y = "Variable",
+       title = "Variables by Average Lag (Negative Lags)")
+```
+
+
+
+```{r}
+top12variables <- c("mean_illness", "mean_health", "mean_family", "mean_Tone",
+                    "mean_fatigue", "mean_Analytic", "mean_allnone", "mean_emo_pos",
+                    "mean_mental", "mean_emo_sad", "mean_tone_pos", "mean_emotion")
+
+top_12 <- combined %>% 
+  filter(Lag > 0 & Variable %in% top12variables)
+
+ggplot(top_12, aes(x = Lag, y = Max_ACF))+
+  geom_point()+
+  labs(x = "Lag",
+       y = "Max Correlation", 
+       title = "Scatter Plot of Top 12 Reddit Indicators by Max Correlation")+
+  facet_wrap(~ Variable)
 
 ```
 
