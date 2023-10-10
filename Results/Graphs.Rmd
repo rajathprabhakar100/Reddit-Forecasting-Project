@@ -116,3 +116,38 @@ ggplot(top_12, aes(x = Lag, y = Max_ACF))+
 
 ```
 
+```{r}
+reddit_and_cases1 <- reddit_and_cases %>%
+  group_by(MSA_Code) %>%
+  mutate(Scaled_DailyCases7 = round(scale(Daily_Cases7), 2),
+         Scaled_DailyDeaths7 = round(scale(Daily_Deaths7), 2),
+         Scaled_mean_health = round(scale(mean_health), 2),
+         Scaled_mean_illness = round(scale(mean_illness), 2))
+```
+
+
+
+```{r}
+ggplot(reddit_and_cases1, aes(x = Date))+
+  geom_line(aes(y = Scaled_DailyCases7, color = "Cases"))+
+  geom_line(aes(y = Scaled_mean_health, color = "mean_health"))+
+  facet_wrap(~ MSA_Title, ncol = 3)+
+  scale_color_manual(values = c("Cases" = "blue", "mean_health" = "red"))+
+  labs(x = "Date",
+       y = "Z Score",
+       title = "Time Series of mean_Health vs Cases")
+
+```
+
+```{r}
+ggplot(reddit_and_cases1, aes(x = Date))+
+  geom_line(aes(y = Scaled_DailyCases7, color = "Cases"))+
+  geom_line(aes(y = Scaled_mean_illness, color = "mean_illness"))+
+  facet_wrap(~ MSA_Title, ncol = 3)+
+  scale_color_manual(values = c("Cases" = "blue", "mean_illness" = "orange"))+
+  labs(x = "Date",
+       y = "Z Score",
+       title = "Time Series of mean_illness vs Cases")
+
+```
+
