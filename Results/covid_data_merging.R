@@ -66,6 +66,12 @@ ggplot(top_12, aes(x = Lag, y = Max_ACF))+
 
 MSA_Codes <- c("C1206", "C1242", "C1446", "C1698", "C2642", "C3108", "C3498", "C3562", "C3674", 
                "C3798", "C3806", "C3890", "C3958", "C4174", "C4186", "C4266", "C4118", "C4790")
+Cities <- c("Atlanta", "Austin", "Boston", "Chicago", "Houston", "Los Angeles",
+            "Nashville", "New York City", "Orlando", "Philadelphia", "Phoenix", "Portland", 
+            "Raleigh", "San Diego", "San Francisco", "Seattle", "St. Louis", "Washington DC")
+table2 <- data.frame(cbind(MSA_Codes, Cities))
+table2 <- table2 %>% 
+  rename(MSA_Code = MSA_Codes)
 
 
 library(readr)
@@ -88,6 +94,7 @@ data_list <- file_names %>%
 
 # Print or use data_list as needed
 combined_reddit_df <- bind_rows(data_list)
+combined_reddit_df <- left_join(combined_reddit_df, table2)
 
 #For cases_and_deaths, filter by MSA_Code, then group_by Date and summarise mean cases and deaths
 cases_and_deaths1 <- cases_and_deaths %>% 
@@ -101,7 +108,9 @@ cases_and_deaths1 <- cases_and_deaths %>%
          Daily_Deaths7 = round(rollmean(Daily_Deaths, k = 7, fill = NA), 2)) %>% 
   select(Date, everything())
 
-reddit_and_cases <- left_join(cases_and_deaths1, combined_reddit_df) %>% na.omit()
+reddit_and_cases <- left_join(cases_and_deaths1, combined_reddit_df) %>%
+  rename(City = Cities) %>% 
+  na.omit()
 #fwrite(reddit_and_cases, paste("Results/CSV Files/reddit_and_cases_deaths.csv"))
 
 reddit_and_cases <- read_csv("Results/CSV Files/reddit_and_cases_deaths.csv")
@@ -115,7 +124,7 @@ reddit_and_cases1 <- reddit_and_cases %>%
 ggplot(reddit_and_cases1, aes(x = Date))+
   geom_line(aes(y = Scaled_DailyCases7, color = "Cases"))+
   geom_line(aes(y = Scaled_mean_health, color = "mean_health"))+
-  facet_wrap(~ MSA_Title, ncol = 3)+
+  facet_wrap(~ City, nrow = 4)+
   scale_color_manual(values = c("Cases" = "blue", "mean_health" = "red"))+
   labs(x = "Date",
        y = "Z Score",
@@ -124,12 +133,10 @@ ggplot(reddit_and_cases1, aes(x = Date))+
 ggplot(reddit_and_cases1, aes(x = Date))+
   geom_line(aes(y = Scaled_DailyCases7, color = "Cases"))+
   geom_line(aes(y = Scaled_mean_illness, color = "mean_illness"))+
-  facet_wrap(~ MSA_Title, ncol = 3)+
+  facet_wrap(~ City, nrow = 4)+
   scale_color_manual(values = c("Cases" = "blue", "mean_illness" = "orange"))+
   labs(x = "Date",
        y = "Z Score",
        title = "Time Series of mean_illness vs Cases")
 
-
-mean(reddit_and_cases$Daily_Cases7)
 
