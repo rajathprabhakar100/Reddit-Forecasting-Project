@@ -7,7 +7,7 @@ output: html_document
 ```{r}
 library(tidyverse)
 library(here)
-
+library(cowplot)
 ```
 ```{r}
 here::set_here()
@@ -23,7 +23,7 @@ Average Correlation
 
 Positive
 ```{r}
-ggplot(table1, aes(x = reorder(Variable,
+figure1 <- ggplot(table1, aes(x = reorder(Variable,
                                abs(Average_ACF_positive)),
                    y = Average_ACF_positive))+
   geom_bar(stat = "identity")+
@@ -31,19 +31,21 @@ ggplot(table1, aes(x = reorder(Variable,
   labs(x = "Average ACF",
        y = "Variable",
        title = "Variables by Average Correlations (Positive Lags)")
+save_plot("Graphs/figure1.png", figure1, base_height = 10, base_width = 10)
 
 ```
 
 Negative
 
 ```{r}
-ggplot(table1, aes(x = reorder(Variable, -abs(Average_ACF_negative)),
+figure2 <- ggplot(table1, aes(x = reorder(Variable, -abs(Average_ACF_negative)),
                    y = Average_ACF_negative))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average ACF",
        y = "Variable",
        title = "Variables by Average Correlations (Negative Lags)")
+save_plot("Graphs/figure2.png", figure2, base_height = 10, base_width = 10)
 ```
 
 Average Rank
@@ -51,50 +53,54 @@ Average Rank
 Positive
 
 ```{r}
-ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_pos)),
+figure3 <- ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_pos)),
                      y = avg_rank_pos))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average Rank",
        y = "Variable",
        title = "Variables by Average Rank (Positive Lags)")
+save_plot("Graphs/figure3.png", figure3, base_height = 10, base_width = 10)
 ```
 
 
 Negative
 
 ```{r}
-ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_neg)),
+figure4 <- ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_neg)),
                      y = avg_rank_neg))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average Rank",
        y = "Variable",
        title = "Variables by Average Rank (Negative Lags)")
+save_plot("Graphs/figure4.png", figure4, base_height = 10, base_width = 10)
 ```
 
 Average Lag
 
 Positive
 ```{r}
-ggplot(table1, aes(x = reorder(Variable, Average_Lag_positive), 
+figure5 <- ggplot(table1, aes(x = reorder(Variable, Average_Lag_positive), 
                    y = Average_Lag_positive))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average Lag",
        y = "Variable",
        title = "Variables by Average Lag (Positive Lags)")
+save_plot("Graphs/figure5.png", figure5, base_height = 10, base_width = 10)
 ```
 
 Negative
 ```{r}
-ggplot(table1, aes(x = reorder(Variable, Average_Lag_negative), 
+figure6 <- ggplot(table1, aes(x = reorder(Variable, Average_Lag_negative), 
                    y = Average_Lag_negative))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average Lag",
        y = "Variable",
        title = "Variables by Average Lag (Negative Lags)")
+save_plot("Graphs/figure6.png", figure6, base_height = 10, base_width = 10)
 ```
 
 
@@ -106,13 +112,16 @@ top12variables <- c("mean_illness", "mean_health", "mean_family", "mean_Tone",
 
 top_12 <- combined %>% 
   filter(Lag > 0 & Variable %in% top12variables)
+```
 
-ggplot(top_12, aes(x = Lag, y = Max_ACF))+
+```{r}
+figure7 <- ggplot(top_12, aes(x = Lag, y = Max_ACF))+
   geom_point()+
   labs(x = "Lag",
        y = "Max Correlation", 
        title = "Scatter Plot of Top 12 Reddit Indicators by Max Correlation")+
   facet_wrap(~ Variable)
+save_plot("Graphs/figure7.png", figure7, base_height = 10, base_width = 10)
 
 ```
 
@@ -132,19 +141,25 @@ reddit_and_cases1 <- reddit_and_cases %>%
 
 
 ```{r}
-ggplot(reddit_and_cases1, aes(x = Date))+
+
+figure8 <- ggplot(reddit_and_cases1, aes(x = Date))+
   geom_line(aes(y = Scaled_DailyCases7, color = "Cases"))+
   geom_line(aes(y = Scaled_mean_illness, color = "mean_illness"))+
-  facet_wrap(~ City, nrow = 4)+
+  facet_wrap(~ City, ncol = 4)+
   scale_color_manual(values = c("Cases" = "blue", "mean_illness" = "orange"))+
   labs(x = "Date",
        y = "Z Score",
-       title = "Time Series of mean_illness vs Cases")
+       title = "Time Series of mean_illness vs Cases")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels
+        axis.text = element_text(size = 10),  # Adjust font size of axis labels
+        plot.margin = margin(20, 20, 20, 20))
 
+figure7
+save_plot("Graphs/figure8.png", figure8, base_height = 10, base_width = 10)
 ```
 
 ```{r}
-ggplot(reddit_and_cases1, aes(x = Date))+
+figure9 <- ggplot(reddit_and_cases1, aes(x = Date))+
   geom_line(aes(y = Scaled_DailyCases7, color = "Cases"))+
   geom_line(aes(y = Scaled_mean_health, color = "mean_health"))+
   facet_wrap(~ City, nrow = 4)+
@@ -152,6 +167,6 @@ ggplot(reddit_and_cases1, aes(x = Date))+
   labs(x = "Date",
        y = "Z Score",
        title = "Time Series of mean_Health vs Cases")
-
+save_plot("Graphs/figure9.png", figure9, base_height = 10, base_width = 10)
 ```
 
