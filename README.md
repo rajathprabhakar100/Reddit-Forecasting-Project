@@ -8,6 +8,26 @@
 3. process_reddit_files().R
 4. ccf_city_case_files().R
 
+## Cities Studied
+- Atlanta
+- Austin
+- Boston
+- Chicago
+- Houston
+- LA
+- Nashville
+- NYC
+- Orlando
+- Philadelphia
+- Phoenix
+- Portland
+- Raleigh
+- San Diego
+- San Francisco
+- Seattle
+- St. Louis
+- Washington DC
+
 ## To Do
 * for the health and illness variables, plot the covid-19 case count time series alongside the time-series of the variable on the same plot. 18 time-series plots for each one
 ** 
