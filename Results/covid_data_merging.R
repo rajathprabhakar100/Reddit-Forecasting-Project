@@ -107,7 +107,7 @@ cases_and_deaths1 <- cases_and_deaths %>%
          Daily_Cases7 = round(rollmean(Daily_Cases, k = 7, fill = NA),2),
          Daily_Deaths7 = round(rollmean(Daily_Deaths, k = 7, fill = NA), 2)) %>% 
   select(Date, everything())
-
+fwrite(cases_and_deaths1, "df of Seven-Day Average of Cases and Deaths by City.csv")
 reddit_and_cases <- left_join(cases_and_deaths1, combined_reddit_df) %>%
   rename(City = Cities) %>% 
   na.omit()
