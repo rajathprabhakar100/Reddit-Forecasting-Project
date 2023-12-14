@@ -4,6 +4,7 @@ boston <- ccf_city_case_files("Daily Data", "boston_daily.csv", code = "C1446", 
 chicago <- ccf_city_case_files("Daily Data", "chicago_daily.csv", code = "C1698", city = "Chicago", state = "Illinois", plots = FALSE, lags = "both")
 houston <- ccf_city_case_files("Daily Data", "houston_daily.csv", code = "C2642", city = "Houston", state = "Texas", plots = FALSE, lags = "both")
 LA <- ccf_city_case_files("Daily Data", "losangeles_daily.csv", code = "C3108", city = "Los Angeles", state = "California", plots = FALSE, lags = "both")
+
 nashville <- ccf_city_case_files("Daily Data", "nashville_daily.csv", code = "C3498", city = "Nashville", state = "Tennessee", plots = FALSE, lags = "both")
 nyc <- ccf_city_case_files("Daily Data", "nyc_daily.csv", code = "C3562", city = "New York", state = "New York", plots = FALSE, lags = "both")
 orlando <- ccf_city_case_files("Daily Data", "orlando_daily.csv", code = "C3674", city = "Orlando", state = "Florida", plots = FALSE, lags = "both")
@@ -22,3 +23,4 @@ washington <- ccf_city_case_files("Daily Data", "washingtondc_daily.csv", code =
 combo <- bind_rows(atlanta, austin, boston, chicago, houston, LA, nashville, nyc, orlando, philadelphia, phoenix, portland, raleigh, san_diego, san_francisco, seattle, stl, washington) %>% 
   select(City, State, Variable, Max_ACF, Lag)
 fwrite(combo, paste("Results/CSV Files/combined_data.csv"))
+

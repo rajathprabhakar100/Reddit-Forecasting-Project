@@ -1,5 +1,6 @@
 library(tidyverse)
 library(readr)
+library(data.table)
 combined <- read_csv("Results/CSV Files/combined_data.csv")
 city_list <- split(combined, combined$City)
 for (city_name in names(city_list)) {
@@ -300,6 +301,13 @@ combined_ranks <- bind_rows(atlanta_rank, austin_rank, boston_rank,
 rank_avg <- combined_ranks %>% 
   group_by(Variable) %>% 
   summarize(avg_rank_pos = mean(Positive_Lag_Rank),
-            avg_rank_neg = mean(Negative_Lag_Rank))
+            avg_rank_neg = mean(Negative_Lag_Rank)) %>% 
+  mutate(Type = c("Summary", "Social", "Tone", "Drives", "Cognition", "Cognition",
+                  "Cognition", "Cognitive", "Social", "Social", "Physical",
+                  "Cognition", "Cognition", "Affect", "Affect", "Affect", "Affect", "Affect", "Affect",
+                  "Social", "States", "Social", "Social", "Physical", "Linguistic", "Physical", "Cognition", 
+                  "Linguistic", "States", "Social", "Physical", "Social", "States", "Affect", "Linguistic", "Linguistic",
+                  "Social", "Motives", "Motives", "Linguistic", "Social", "Social", "Cognition", "Linguistic", "Affect",
+                  "Affect", "States", "Linguistic", "Physical", "Linguistic"))
 fwrite(rank_avg, paste("Results/CSV Files/Average_City_Rank.csv"))
 

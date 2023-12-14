@@ -2,19 +2,18 @@ library(tidyverse)
 library(data.table)
 library(readr)
 library(zoo)
+library(here)
 
-covid_cases <- read.csv("Covid Data/time_series_covid19_confirmed_US.csv")
-covid_cases <- covid_cases %>% 
-  mutate(across(starts_with("X"), ~ as.numeric(.)))
-colnames(covid_cases) <- gsub("^X", "", colnames(covid_cases))
+covid_cases <- read_csv(here("Covid Data/time_series_covid19_confirmed_US.csv")) #%>%
+  #mutate(across(starts_with("X"), ~ as.numeric(.)))
+#colnames(covid_cases) <- gsub("^X", "", colnames(covid_cases))
 
-covid_deaths <- read.csv("Covid Data/time_series_covid19_deaths_US.csv")
+covid_deaths <- read_csv(here("Covid Data/time_series_covid19_deaths_US.csv")) %>% 
 #head(covid_deaths)
-covid_deaths <- covid_deaths %>% 
   mutate(across(starts_with("X"), ~ as.numeric(.)))
 colnames(covid_deaths) <- gsub("^X", "", colnames(covid_deaths))
 
-crosswalk <- read.csv("modified_crosswalk.csv")
+crosswalk <- read.csv(here("modified_crosswalk.csv"))
 new_colnames <- gsub("\\.", "_", colnames(crosswalk))
 colnames(crosswalk) <- new_colnames
 new_crosswalk <- crosswalk %>% select(c(FIPS, MSA_Code, MSA_Title))
@@ -23,18 +22,18 @@ cases <- left_join(covid_cases, new_crosswalk, by = "FIPS") %>%
   mutate(across(starts_with("new_crosswalk"), ~ ifelse(is.na(FIPS), "NA", .))) %>% 
   select(UID, iso2, iso3, code3, FIPS, MSA_Code, MSA_Title, everything())
 cases <- cases %>% 
-  gather(key = "Date", value = "Value", "1.22.20":ncol(cases)) %>% 
+  gather(key = "Date", value = "Value", "1/22/20":ncol(cases)) %>% 
   select(Date, everything()) 
-cases$Date <- as.Date(cases$Date, format = "%m.%d.%y")
+cases$Date <- as.Date(cases$Date, format = "%m/%d/%y")
 cases <- cases %>% rename(Cases = Value)
 
 deaths <- left_join(covid_deaths, new_crosswalk, by = "FIPS") %>% 
   mutate(across(starts_with("new_crosswalk"), ~ ifelse(is.na(FIPS), "NA", .))) %>% 
   select(UID, iso2, iso3, code3, FIPS, MSA_Code, MSA_Title, everything())
 deaths <- deaths %>% 
-  gather(key = "Date", value = "Value", "1.22.20":ncol(deaths)) %>% 
+  gather(key = "Date", value = "Value", "1/22/20":ncol(deaths)) %>% 
   select(Date, everything()) 
-deaths$Date <- as.Date(deaths$Date, format = "%m.%d.%y")
+deaths$Date <- as.Date(deaths$Date, format = "%m/%d/%y")
 deaths <- deaths %>% rename(Deaths = Value)  
 
 ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code = NULL, city = NULL,
@@ -48,7 +47,7 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
   
   file_path <- file.path(folder_path, filename)
   #print(file_path)
-  data <- fread(file_path)
+  data <- fread(here(file_path))
   data$Date <- as.Date(data$Date)
   
   if (!is.null(code)) {
@@ -94,7 +93,7 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
         
         actual_column_name <- colnames(city_combined)[which(colnames(city_combined) == explanatory)]
         
-        plot(ccf_result, main = paste("Daily Cases &", actual_column_name))
+        plot(ccf_result, main = paste("Daily Cases &", actual_column_name, "for", city, ",", state))
         return(acf_table)
         
         
@@ -117,11 +116,6 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
           select(Variable, City, State, Max_ACF, Lag)
         
         actual_column_name <- colnames(city_combined)[which(colnames(city_combined) == explanatory)]
-        #if (lags == "negative") {
-        #  final_acf_table <- acf_table %>% 
-        #    filter(Sign == "Lag < 0")
-        #  print(final_acf_table)
-        #}
         
         
         return(acf_table)
@@ -149,15 +143,17 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
             group_by(Sign) %>% 
             summarise(Max_ACF = max(ACF), 
                       Lag = Lag[which.max(ACF)]) %>% 
-            mutate(Variable = column) %>% 
-            select(Variable, City, State, Max_ACF, Lag)
+            mutate(Variable = column,
+                   City = city,
+                   State = state) %>% 
+            select(Variable, City, State, Max_ACF, Lag, Sign)
           
           acf_tables_list[[column]] <- acf_table
           
           
           actual_column_name <- colnames(city_combined)[which(colnames(city_combined) == column)]
           
-          plot(ccf_result, main = paste("Daily Cases &", actual_column_name))
+          plot(ccf_result, main = paste("Daily Cases &", actual_column_name, "for", city,",", state))
         }
         combined_acf_table <- do.call(rbind, acf_tables_list)
         summary_table_positive <- combined_acf_table %>% 
@@ -172,6 +168,7 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
                  State = state) %>% 
           select(-c(1)) %>% 
           arrange(desc(abs(Max_ACF)))
+       
         if (lags == "negative") {
           return(summary_table_negative)
         }
@@ -206,7 +203,11 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
             group_by(Sign) %>% 
             summarise(Max_ACF = max(ACF), 
                       Lag = Lag[which.max(ACF)]) %>% 
-            mutate(Variable = column)
+            mutate(Variable = column,
+                   City = city,
+                   State = state) %>% 
+            select(Variable, City, State, Max_ACF, Lag, Sign)
+          #return(acf_table)
           
           acf_tables_list[[column]] <- acf_table
           
@@ -231,8 +232,8 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
           return(summary_table_positive)
         }
         else {
-          return(combined_acf_table %>% 
-                   select(-c(1)) %>% mutate(City = city, State = state))
+          return(combined_acf_table %>%
+                   mutate(City = city, State = state))
         }
       }
     }

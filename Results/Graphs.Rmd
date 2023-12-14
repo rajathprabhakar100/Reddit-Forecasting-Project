@@ -25,13 +25,15 @@ Positive
 ```{r}
 figure1 <- ggplot(table1, aes(x = reorder(Variable,
                                abs(Average_ACF_positive)),
-                   y = Average_ACF_positive))+
+                   y = Average_ACF_positive, 
+                   fill = Type))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average ACF",
        y = "Variable",
        title = "Variables by Average Correlations (Positive Lags)")
-save_plot("Graphs/figure1.png", figure1, base_height = 10, base_width = 10)
+figure1
+save_plot("Graphs/figure1.png", figure1, base_height = 8, base_width = 8)
 
 ```
 
@@ -39,13 +41,14 @@ Negative
 
 ```{r}
 figure2 <- ggplot(table1, aes(x = reorder(Variable, -abs(Average_ACF_negative)),
-                   y = Average_ACF_negative))+
+                   y = Average_ACF_negative, fill = Type))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average ACF",
        y = "Variable",
        title = "Variables by Average Correlations (Negative Lags)")
-save_plot("Graphs/figure2.png", figure2, base_height = 10, base_width = 10)
+figure2
+save_plot("Graphs/figure2.png", figure2, base_height = 8, base_width = 8)
 ```
 
 Average Rank
@@ -54,13 +57,14 @@ Positive
 
 ```{r}
 figure3 <- ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_pos)),
-                     y = avg_rank_pos))+
+                     y = avg_rank_pos, fill = Type))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average Rank",
        y = "Variable",
        title = "Variables by Average Rank (Positive Lags)")
-save_plot("Graphs/figure3.png", figure3, base_height = 10, base_width = 10)
+figure3
+save_plot("Graphs/figure3.png", figure3, base_height = 8, base_width = 8)
 ```
 
 
@@ -68,13 +72,14 @@ Negative
 
 ```{r}
 figure4 <- ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_neg)),
-                     y = avg_rank_neg))+
+                     y = avg_rank_neg, fill = Type))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average Rank",
        y = "Variable",
        title = "Variables by Average Rank (Negative Lags)")
-save_plot("Graphs/figure4.png", figure4, base_height = 10, base_width = 10)
+figure4
+save_plot("Graphs/figure4.png", figure4, base_height = 8, base_width = 8)
 ```
 
 Average Lag
@@ -82,25 +87,27 @@ Average Lag
 Positive
 ```{r}
 figure5 <- ggplot(table1, aes(x = reorder(Variable, Average_Lag_positive), 
-                   y = Average_Lag_positive))+
+                   y = Average_Lag_positive, fill = Type))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average Lag",
        y = "Variable",
        title = "Variables by Average Lag (Positive Lags)")
-save_plot("Graphs/figure5.png", figure5, base_height = 10, base_width = 10)
+figure5
+save_plot("Graphs/figure5.png", figure5, base_height = 8, base_width = 8)
 ```
 
 Negative
 ```{r}
 figure6 <- ggplot(table1, aes(x = reorder(Variable, Average_Lag_negative), 
-                   y = Average_Lag_negative))+
+                   y = Average_Lag_negative, fill = Type))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average Lag",
        y = "Variable",
        title = "Variables by Average Lag (Negative Lags)")
-save_plot("Graphs/figure6.png", figure6, base_height = 10, base_width = 10)
+figure6
+save_plot("Graphs/figure6.png", figure6, base_height = 8, base_width = 8)
 ```
 
 
@@ -121,7 +128,8 @@ figure7 <- ggplot(top_12, aes(x = Lag, y = Max_ACF))+
        y = "Max Correlation", 
        title = "Scatter Plot of Top 12 Reddit Indicators by Max Correlation")+
   facet_wrap(~ Variable)
-save_plot("Graphs/figure7.png", figure7, base_height = 10, base_width = 10)
+figure7
+save_plot("Graphs/figure7.png", figure7, base_height = 8, base_width = 8)
 
 ```
 
@@ -155,7 +163,7 @@ figure8 <- ggplot(reddit_and_cases1, aes(x = Date))+
         plot.margin = margin(20, 20, 20, 20))
 
 figure7
-save_plot("Graphs/figure8.png", figure8, base_height = 10, base_width = 10)
+save_plot("Graphs/figure8.png", figure8, base_height = 8, base_width = 8)
 ```
 
 ```{r}
@@ -167,6 +175,42 @@ figure9 <- ggplot(reddit_and_cases1, aes(x = Date))+
   labs(x = "Date",
        y = "Z Score",
        title = "Time Series of mean_Health vs Cases")
-save_plot("Graphs/figure9.png", figure9, base_height = 10, base_width = 10)
+save_plot("Graphs/figure9.png", figure9, base_height = 8, base_width = 8)
 ```
+
+```{r}
+head(table1 %>% filter(Average_ACF_positive > 0.1) %>% arrange(-Average_ACF_positive),10)
+```
+```{r}
+head(rank_avg %>% arrange(avg_rank_pos), 10)
+```
+
+*CCF Plots*
+```{r}
+source(here::here("Results/ccf_city_case_files().R"))
+```
+
+**Atlanta**
+***Health***
+```{r}
+ccf_city_case_files("Daily Data", "atlanta_daily.csv", explanatory = "mean_health", code = "C1206", city = "Atlanta", state = "Georgia", plots = TRUE, lags = "both")
+```
+
+**Illness**
+```{r}
+ccf_city_case_files("Daily Data", "atlanta_daily.csv", explanatory = "mean_illness", code = "C1206", city = "Atlanta", state = "Georgia", plots = TRUE, lags = "both")
+```
+
+
+**Anxiety**
+```{r}
+ccf_city_case_files("Daily Data", "atlanta_daily.csv", explanatory = "mean_emo_anx", code = "C1206", city = "Atlanta", state = "Georgia", plots = TRUE, lags = "both")
+```
+
+
+*Austin*
+
+*Boston*
+
+*Chicago*
 
