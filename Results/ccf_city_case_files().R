@@ -3,7 +3,7 @@ library(data.table)
 library(readr)
 library(zoo)
 library(here)
-
+library(readxl)
 covid_cases <- read_csv(here("Covid Data/time_series_covid19_confirmed_US.csv")) #%>%
   #mutate(across(starts_with("X"), ~ as.numeric(.)))
 #colnames(covid_cases) <- gsub("^X", "", colnames(covid_cases))
@@ -13,10 +13,19 @@ covid_deaths <- read_csv(here("Covid Data/time_series_covid19_deaths_US.csv")) %
   mutate(across(starts_with("X"), ~ as.numeric(.)))
 colnames(covid_deaths) <- gsub("^X", "", colnames(covid_deaths))
 
+population <- read_excel("co-est2022-pop.xlsx", skip = 4)
+population <- population %>% 
+  rename(County_Title = `United States`,
+         estpop2020 = `331449520`,
+         pop2020 = `331511512`,
+         pop2021 = `331511512`,
+         pop2022 = `333287557`)
+population$County_Title <- sub("^\\.", "", population$County_Title)
+
 crosswalk <- read.csv(here("modified_crosswalk.csv"))
 new_colnames <- gsub("\\.", "_", colnames(crosswalk))
 colnames(crosswalk) <- new_colnames
-new_crosswalk <- crosswalk %>% select(c(FIPS, MSA_Code, MSA_Title))
+new_crosswalk <- crosswalk %>% select(FIPS, County_Title, MSA_Code, MSA_Title, CSA_Code, CSA_Title)
 
 cases <- left_join(covid_cases, new_crosswalk, by = "FIPS") %>%
   mutate(across(starts_with("new_crosswalk"), ~ ifelse(is.na(FIPS), "NA", .))) %>% 
