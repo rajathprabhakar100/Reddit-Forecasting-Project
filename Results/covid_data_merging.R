@@ -104,8 +104,8 @@ cases_and_deaths1 <- cases_and_deaths %>%
             Deaths = round(sum(Deaths), 0)) %>%
   mutate(Daily_Cases = Cases - lag(Cases, default = 0),
          Daily_Deaths = Deaths - lag(Deaths, default = 0),
-         Daily_Cases7 = round(rollmean(Daily_Cases, k = 7, fill = NA),2),
-         Daily_Deaths7 = round(rollmean(Daily_Deaths, k = 7, fill = NA), 2)) %>% 
+         Daily_Cases7 = round(rollmeanr(Daily_Cases, k = 7, fill = NA),2),
+         Daily_Deaths7 = round(rollmeanr(Daily_Deaths, k = 7, fill = NA), 2)) %>% 
   select(Date, everything())
 fwrite(cases_and_deaths1, "df of Seven-Day Average of Cases and Deaths by City.csv")
 reddit_and_cases <- left_join(cases_and_deaths1, combined_reddit_df) %>%

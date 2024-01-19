@@ -21,6 +21,6 @@ washington <- ccf_city_case_files("Daily Data", "washingtondc_daily.csv", code =
 
 
 combo <- bind_rows(atlanta, austin, boston, chicago, houston, LA, nashville, nyc, orlando, philadelphia, phoenix, portland, raleigh, san_diego, san_francisco, seattle, stl, washington) %>% 
-  select(City, State, Variable, Max_ACF, Lag)
+  select(City, State, Variable, Max_ACF, Lag, Est_Population, Population)
 fwrite(combo, paste("Results/CSV Files/combined_data.csv"))
 

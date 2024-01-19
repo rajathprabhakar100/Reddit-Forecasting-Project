@@ -13,37 +13,42 @@ covid_deaths <- read_csv(here("Covid Data/time_series_covid19_deaths_US.csv")) %
   mutate(across(starts_with("X"), ~ as.numeric(.)))
 colnames(covid_deaths) <- gsub("^X", "", colnames(covid_deaths))
 
-population <- read_excel("co-est2022-pop.xlsx", skip = 4)
-population <- population %>% 
+census_data <- read_excel("co-est2022-pop.xlsx", skip = 4)
+census_data <- census_data %>% 
   rename(County_Title = `United States`,
          estpop2020 = `331449520`,
          pop2020 = `331511512`,
-         pop2021 = `331511512`,
+         pop2021 = `332031554`,
          pop2022 = `333287557`)
-population$County_Title <- sub("^\\.", "", population$County_Title)
+census_data$County_Title <- sub("^\\.", "", census_data$County_Title)
 
 crosswalk <- read.csv(here("modified_crosswalk.csv"))
 new_colnames <- gsub("\\.", "_", colnames(crosswalk))
 colnames(crosswalk) <- new_colnames
-new_crosswalk <- crosswalk %>% select(FIPS, County_Title, MSA_Code, MSA_Title, CSA_Code, CSA_Title)
+new_crosswalk <- crosswalk %>% select(FIPS, County_Title, MSA_Code, MSA_Title) %>% 
+  left_join(census_data, by = "County_Title")
 
 cases <- left_join(covid_cases, new_crosswalk, by = "FIPS") %>%
   mutate(across(starts_with("new_crosswalk"), ~ ifelse(is.na(FIPS), "NA", .))) %>% 
-  select(UID, iso2, iso3, code3, FIPS, MSA_Code, MSA_Title, everything())
+  select(UID, iso2, iso3, code3, FIPS, MSA_Code, MSA_Title, Admin2, estpop2020, pop2020, everything()) %>% 
+  select(-c(pop2021, pop2022))
 cases <- cases %>% 
   gather(key = "Date", value = "Value", "1/22/20":ncol(cases)) %>% 
   select(Date, everything()) 
 cases$Date <- as.Date(cases$Date, format = "%m/%d/%y")
 cases <- cases %>% rename(Cases = Value)
+cases$Cases <- as.numeric(cases$Cases)
 
 deaths <- left_join(covid_deaths, new_crosswalk, by = "FIPS") %>% 
   mutate(across(starts_with("new_crosswalk"), ~ ifelse(is.na(FIPS), "NA", .))) %>% 
-  select(UID, iso2, iso3, code3, FIPS, MSA_Code, MSA_Title, everything())
+  select(UID, iso2, iso3, code3, FIPS, MSA_Code, MSA_Title, Admin2, estpop2020, pop2020, everything()) %>% 
+  select(-c(pop2021, pop2022))
 deaths <- deaths %>% 
   gather(key = "Date", value = "Value", "1/22/20":ncol(deaths)) %>% 
   select(Date, everything()) 
 deaths$Date <- as.Date(deaths$Date, format = "%m/%d/%y")
-deaths <- deaths %>% rename(Deaths = Value)  
+deaths <- deaths %>% rename(Deaths = Value)
+deaths$Deaths <- as.numeric(deaths$Deaths)
 
 ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code = NULL, city = NULL,
                                 state = NULL, plots = TRUE, lags = "both") {
@@ -63,12 +68,16 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
     city_msa_cases <- cases %>% 
       filter(MSA_Code == code) %>% 
       group_by(Date) %>% 
-      summarize(Cases = sum(Cases))
+      summarize(Cases = sum(Cases),
+                Est_Population = sum(estpop2020),
+                Population = sum(pop2020))
     #set up for ccf
     city_msa_deaths <- deaths %>% 
       filter(MSA_Code == code) %>% 
       group_by(Date) %>% 
-      summarize(Deaths = sum(Deaths))
+      summarize(Deaths = sum(Deaths),
+                Est_Population = sum(estpop2020),
+                Population = sum(pop2020))
 
     city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "Date") %>% 
       mutate(Daily_Cases = Cases - lag(Cases, default = 0),
@@ -78,7 +87,10 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
     city_combined$Daily_Cases7 <- round(city_combined$Daily_Cases7, 2)
     city_combined$Daily_Deaths7 <- round(city_combined$Daily_Deaths7, 2)
     city_combined <- left_join(city_combined, data, by = "Date") %>% 
-      na.omit()
+      na.omit() %>% 
+      rename(Est_Population = Est_Population.x,
+             Population = Population.x) %>% 
+      select(-c(Est_Population.y, Population.y))
     #return(city_combined)
     
     if (!is.null(explanatory)) {
@@ -137,7 +149,7 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
         #show plots
         
         # Select columns to perform ccf on (excluding the first 7 columns)
-        ccf_columns <- names(city_combined)[8:ncol(city_combined)]
+        ccf_columns <- names(city_combined)[10:ncol(city_combined)]
         
         acf_tables_list <- list()
         
@@ -196,7 +208,7 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
       else {
         #don't show plots
         # Select columns to perform ccf on (excluding the first 7 columns)
-        ccf_columns <- names(city_combined)[8:ncol(city_combined)]
+        ccf_columns <- names(city_combined)[10:ncol(city_combined)]
         
         acf_tables_list <- list()
         
@@ -214,7 +226,8 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
                       Lag = Lag[which.max(ACF)]) %>% 
             mutate(Variable = column,
                    City = city,
-                   State = state) %>% 
+                   State = state,
+                   Est_Population = mean(city_combined$Est_Population)) %>% 
             select(Variable, City, State, Max_ACF, Lag, Sign)
           #return(acf_table)
           
@@ -242,7 +255,10 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
         }
         else {
           return(combined_acf_table %>%
-                   mutate(City = city, State = state))
+                   mutate(City = city, 
+                          State = state,
+                          Est_Population = mean(city_combined$Est_Population),
+                          Population = mean(city_combined$Population)))
         }
       }
     }
