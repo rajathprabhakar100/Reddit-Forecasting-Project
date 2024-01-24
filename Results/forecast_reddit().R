@@ -39,10 +39,12 @@ forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
   if (weeks == 1) {
     city_projection_data <- city_projection_data %>% 
       filter(between(Date, as.Date(date), as.Date(date) + 6)) %>% 
-      mutate(R2_7 = city7_model_summary$adj.r.squared,
+      mutate(R2 = city7_model_summary$adj.r.squared,
              Forecast = predict(city7_model, newdata =., interval = "prediction", level = 0.95)[, "fit"],
              Forecast_Lwr = predict(city7_model, newdata = ., interval = "prediction", level = 0.95)[, "lwr"],
-             Forecast_Upr = predict(city7_model, newdata = ., interval = "prediction", level = 0.95)[, "upr"])
+             Forecast_Upr = predict(city7_model, newdata = ., interval = "prediction", level = 0.95)[, "upr"]) %>% 
+      select(Date, MSA_Title, City, Daily_Cases, mean_illness, illness7, illness14, illness21, R2, Forecast_Lwr,
+             Forecast, Forecast_Upr)
     if (csv) {
       formatted_date <- gsub("-", "_", date)
       filename <- paste("Results/Projections/forecasting_data_", gsub(" ", "", city), "_", formatted_date, ".csv",
@@ -60,9 +62,11 @@ forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
   
   else if (weeks == 2) {
     city_projection_data <- city_projection_data %>% 
-      filter(between(Date, as.Date(date), as.Date(date) + 13)) %>% 
-      mutate(R2_7 = city7_model_summary$adj.r.squared,
-             R2_14 = city14_model_summary$adj.r.squared) %>% 
+      filter(between(Date, as.Date(date), as.Date(date) + 13)) %>%
+      mutate(R2 = case_when(
+        row_number() <= 7 ~ city7_model_summary$adj.r.squared,
+        row_number() > 7 ~ city14_model_summary$adj.r.squared
+      )) %>% 
       mutate(
         Forecast = case_when(
           row_number() <= 7 ~ predict(city7_model, newdata = ., interval = "prediction", level = 0.95)[, "fit"],
@@ -72,7 +76,9 @@ forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
           row_number() > 7 ~ predict(city14_model, newdata = ., interval = "prediction", level = 0.95)[, "lwr"]),
         Forecast_Upr = case_when(
           row_number() <= 7 ~ predict(city7_model, newdata = ., interval = "prediction", level = 0.95)[, "upr"],
-          row_number() > 7 ~ predict(city14_model, newdata = ., interval = "prediction", level = 0.95)[, "upr"]))
+          row_number() > 7 ~ predict(city14_model, newdata = ., interval = "prediction", level = 0.95)[, "upr"])) %>% 
+      select(Date, MSA_Title, City, Daily_Cases, mean_illness, illness7, illness14, illness21, R2, Forecast_Lwr,
+             Forecast, Forecast_Upr)
     if (csv) {
       formatted_date <- gsub("-", "_", date)
       filename <- paste("Results/Projections/forecasting_data_", gsub(" ", "", city), "_", formatted_date, ".csv",
@@ -92,9 +98,11 @@ forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
   else if (weeks == 3) {
     city_projection_data <- city_projection_data %>% 
       filter(between(Date, as.Date(date), as.Date(date) + 20)) %>% 
-      mutate(R2_7 = city7_model_summary$adj.r.squared,
-             R2_14 = city14_model_summary$adj.r.squared,
-             R2_21 = city21_model_summary$adj.r.squared) %>% 
+      mutate(R2 = case_when(
+        row_number() <= 7 ~ city7_model_summary$adj.r.squared,
+        row_number() > 7 & row_number() <= 14 ~ city14_model_summary$adj.r.squared,
+        row_number() > 14 ~ city21_model_summary$adj.r.squared
+      )) %>% 
       mutate(
         Forecast = case_when(
           row_number() <= 7 ~ predict(city7_model, newdata = ., interval = "prediction", level = 0.95)[, "fit"],
@@ -115,11 +123,13 @@ forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
           row_number() > 7 & row_number() <= 14 ~ predict(city14_model, newdata = ., interval = "prediction", level = 0.95)[, "upr"],
           row_number() > 14 ~ predict(city21_model, newdata = ., interval = "prediction", level = 0.95)[, "upr"],
           TRUE ~ NA_real_
-        ))
+        )) %>% 
+      select(Date, MSA_Title, City, Daily_Cases, mean_illness, illness7, illness14, illness21, R2, Forecast_Lwr,
+             Forecast, Forecast_Upr)
     #print(city_projection_data)
     if (csv) {
       formatted_date <- gsub("-", "_", date)
-      filename <- paste("Results/Projections/forecasting_data_", gsub(" ", "", city), "_", formatted_date, ".csv",
+      filename <- paste("Results/Projections/", gsub(" ", "", city), "/forecasting_data_", gsub(" ", "", city), "_", formatted_date, ".csv",
                         sep = "")
       #print(filename)
       fwrite(city_projection_data, filename)
@@ -141,42 +151,9 @@ forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
   
 }
 
-Atlanta_05_01_2021 <- forecast_reddit(date = "2021-05-01", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_02_2021 <- forecast_reddit(date = "2021-05-02", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_03_2021 <- forecast_reddit(date = "2021-05-03", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_04_2021 <- forecast_reddit(date = "2021-05-04", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_05_2021 <- forecast_reddit(date = "2021-05-05", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_06_2021 <- forecast_reddit(date = "2021-05-06", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_07_2021 <- forecast_reddit(date = "2021-05-07", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_08_2021 <- forecast_reddit(date = "2021-05-08", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_09_2021 <- forecast_reddit(date = "2021-05-09", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_10_2021 <- forecast_reddit(date = "2021-05-10", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_11_2021 <- forecast_reddit(date = "2021-05-11", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_12_2021 <- forecast_reddit(date = "2021-05-12", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_13_2021 <- forecast_reddit(date = "2021-05-13", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_14_2021 <- forecast_reddit(date = "2021-05-14", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_15_2021 <- forecast_reddit(date = "2021-05-15", city = "Atlanta", csv = F, weeks = 3)
-Atlanta_05_16_2021 <- forecast_reddit(date = "2021-05-16", city = "Atlanta", csv = F, weeks = 3)
-
-Atlanta_05_01_2021$summary_7days
-Atlanta_05_02_2021$summary_7days
-Atlanta_05_03_2021$summary_7days
-Atlanta_05_04_2021$summary_7days
-Atlanta_05_05_2021$summary_7days
-Atlanta_05_06_2021$summary_7days
-Atlanta_05_07_2021$summary_7days
-Atlanta_05_08_2021$summary_7days
-Atlanta_05_09_2021$summary_7days
-Atlanta_05_10_2021$summary_7days
-Atlanta_05_11_2021$summary_7days
-Atlanta_05_12_2021$summary_7days
-Atlanta_05_13_2021$summary_7days
-Atlanta_05_14_2021$summary_7days
-Atlanta_05_15_2021$summary_7days
-Atlanta_05_16_2021$summary_7days
-
+forecast_reddit(date = "2021-05-01", city = "Atlanta", csv = TRUE)
 test_atlanta <- reddit_and_cases %>% 
-  filter(MSA_Code == "C1206" & Date >= "2021-05-01" & Date <= "2021-05-06")
+  filter(MSA_Code == "C1206" & Date >= "2020-05-01" & Date <= "2022-05-01")
 
 for (i in test_atlanta$Date) {
   formatted_date <- as.character(as.Date(i))
@@ -184,4 +161,19 @@ for (i in test_atlanta$Date) {
 }
 
 
-May_2_2021_Atlanta <- forecast_reddit(date = "2021-05-02", city = "Atlanta")
+May_2_2021_Atlanta <- forecast_reddit(date = "2021-05-04", city = "Atlanta")
+May_2_2021_Atlanta <- May_2_2021_Atlanta$projection
+May_2_2021_Atlanta %>% 
+  slice(c(8,15,22)) #%>% 
+  mutate(Forecast_Date = )
+
+folder_path <- "Results/Projections/Atlanta"
+files <- list.files(folder_path)
+
+pattern_index <- seq(1, length(files), by = 7)
+
+data_list <- list()
+
+for (i in pattern_index) {
+  
+}
