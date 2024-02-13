@@ -11,12 +11,14 @@ forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
   conflict_prefer("lag", "dplyr")
   conflict_prefer("between", "dplyr")
   city_training_data <- reddit_and_cases %>%
-    filter(between(Date, as.Date(date) - 27, as.Date(date)) & City == city) %>%
-    mutate(illness7 = lag(rollmeanr(mean_illness, k = 7, fill = NA), n = 7),
-           illness14 = lag(rollmeanr(mean_illness, k = 7, fill = NA), n = 14),
-           illness21 = lag(rollmeanr(mean_illness, k = 7, fill = NA), n = 21)) %>% 
+    filter(City == city) %>%
+    mutate(illness7 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 7),
+           illness14 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 14),
+           illness21 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 21)) %>%
+    filter(between(Date, as.Date(date) - 27, as.Date(date))) %>% 
     select(Date, City, MSA_Code, Daily_Cases7, mean_illness, illness7, illness14, illness21)
-  #print(head(city_training_data))
+  #print(city_training_data)
+  
   city7_model <- lm(Daily_Cases7 ~ illness7 + illness14 + illness21, data = city_training_data)
   city14_model <- lm(Daily_Cases7 ~ illness14 + illness21, data = city_training_data)
   city21_model <- lm(Daily_Cases7 ~ illness21, data = city_training_data)
@@ -30,9 +32,9 @@ forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
   
   city_projection_data <- reddit_and_cases %>% 
     filter(City == city) %>% 
-    mutate(illness7 = lag(rollmeanr(mean_illness, k = 7, fill = NA), n = 7),
-           illness14 = lag(rollmeanr(mean_illness, k = 7, fill = NA), n = 14),
-           illness21 = lag(rollmeanr(mean_illness, k = 7, fill = NA), n = 21)) #%>%
+    mutate(illness7 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 7),
+           illness14 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 14),
+           illness21 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 21)) #%>%
     #na.omit()
 
   if (weeks == 3) {
@@ -90,4 +92,4 @@ forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
   
   
 }
-
+ 
