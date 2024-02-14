@@ -29,4 +29,5 @@ for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
 }
 final_data_atlanta <- do.call(rbind, data_list)
 library(data.table)
-fwrite(final_data_atlanta, "Results/Projections/atlanta_projected_cases.csv")
+#fwrite(final_data_atlanta, "Results/Projections/atlanta_projected_cases.csv")
+final_data_atlanta <- read_csv("Results/Projections/atlanta_projected_cases.csv")

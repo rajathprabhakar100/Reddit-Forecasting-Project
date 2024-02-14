@@ -34,3 +34,40 @@ ggplot(reddit_and_cases1, aes(x = Date))+
   labs(x = "Date",
        y = "Z Score",
        title = "Time Series of mean_illness vs Cases")
+
+#Graphing Projections
+final_data_atlanta <- read_csv("Results/Projections/atlanta_projected_cases.csv") %>% 
+  mutate(Absolute_Error7 = abs(fcast7_mean - case7),
+         Absolute_Error14 = abs(fcast14_mean - case14),
+         Absolute_Error21 = abs(fcast21_mean - case21))
+
+MAE <- final_data_atlanta %>% 
+  summarize(MAE7 = mean(Absolute_Error7, na.rm = T),
+            MAE14 = mean(Absolute_Error14, na.rm = T),
+            MAE21 = mean(Absolute_Error21, na.rm = T))
+
+library(tidyverse)
+library(gridExtra)
+atlanta7 <- ggplot(final_data_atlanta, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta$fcast7_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta$case7)+
+  labs(x = "Date", y = "Cases", title = "7-day Forecast Results")
+  
+atlanta14 <- ggplot(final_data_atlanta, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta$fcast14_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast14_lwr, ymax = fcast14_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta$case14)+
+  labs(x = "Date", y = "Cases", title = "14-day Forecast Results")
+
+atlanta21 <- ggplot(final_data_atlanta, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta$fcast21_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast21_lwr, ymax = fcast21_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta$case21)+
+  labs(x = "Date", y = "Cases", title = "21-day Forecast Results")
+
+
+atlanta14
+atlanta21
+
+
