@@ -61,13 +61,47 @@ atlanta14 <- ggplot(final_data_atlanta, aes(x = Forecast_Date))+
   labs(x = "Date", y = "Cases", title = "14-day Forecast Results")
 
 atlanta21 <- ggplot(final_data_atlanta, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta$fcast21_mean, color = "red")+
+  geom_line(y = final_data_atlanta1$fcast21_mean, color = "red")+
   geom_ribbon(aes(ymin = fcast21_lwr, ymax = fcast21_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta$case21)+
+  geom_point(y = final_data_atlanta1$case21)+
   labs(x = "Date", y = "Cases", title = "21-day Forecast Results")
 
+final_data_atlanta2 <- read_csv("Results/Projections/atlanta_projected_cases_8weeks.csv") %>% 
+  mutate(Absolute_Error7 = abs(fcast7_mean - case7),
+         Absolute_Error14 = abs(fcast14_mean - case14),
+         Absolute_Error21 = abs(fcast21_mean - case21)) %>% 
+  summarize(MAE7 = mean(Absolute_Error7, na.rm = T),
+            MAE14 = mean(Absolute_Error14, na.rm = T),
+            MAE21 = mean(Absolute_Error21, na.rm = T))
 
+atlanta7_56days <- ggplot(final_data_atlanta1, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta1$fcast7_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta1$case7)+
+  labs(x = "Date", y = "Cases", title = "7-day Forecast Results", subtitle = "8 weeks")
+
+atlanta14_56days <- ggplot(final_data_atlanta1, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta1$fcast14_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast14_lwr, ymax = fcast14_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta1$case14)+
+  labs(x = "Date", y = "Cases", title = "14-day Forecast Results", subtitle = "8 weeks")
+
+atlanta21_56days <- ggplot(final_data_atlanta1, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta1$fcast21_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast21_lwr, ymax = fcast21_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta1$case21)+
+  labs(x = "Date", y = "Cases", title = "21-day Forecast Results", subtitle = "8 weeks")
+
+atlanta7
 atlanta14
 atlanta21
 
+atlanta7_56days
+atlanta14_56days
+atlanta21_56days
 
+grid.arrange(atlanta7, atlanta7_56days)
+grid.arrange(atlanta14, atlanta14_56days)
+grid.arrange(atlanta21, atlanta21_56days)
+
+rbind(MAE, final_data_atlanta2)
