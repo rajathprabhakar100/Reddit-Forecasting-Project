@@ -33,13 +33,12 @@ eg2 <- reddit_and_cases %>%
          illness14 = lag(rollmean(mean_illness, k = 7, align = "left", fill = NA, na.pad = T), n = 14),
          illness21 = lag(rollmean(mean_illness, k = 7, align = "left", fill = NA, na.pad = T), n = 21)) %>% 
   select(Date, City, MSA_Code, Daily_Cases7, mean_illness, illness7, illness14, illness21)
-data_list <- list()
 
 data_list <- list()
 for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
   projection <- forecast_reddit1(date = date, city = "Atlanta")$projection
   projection1 <- projection %>% 
-    slice(c(1,8,15, 22)) %>%
+    slice(c(1,8,15,22)) %>%
     summarize(Forecast_Date = Date[1],
               R2_7 = R2[1],
               R2_14 = R2[2],
@@ -62,5 +61,5 @@ for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
   data_list[[length(data_list) + 1]] <- projection1
 }
 final_data_atlanta1 <- do.call(rbind, data_list)
-fwrite(final_data_atlanta1, "Results/Projections/atlanta_projected_cases_8weeks")
+fwrite(final_data_atlanta1, "Results/Projections/atlanta_projected_cases_8weeks.csv")
 
