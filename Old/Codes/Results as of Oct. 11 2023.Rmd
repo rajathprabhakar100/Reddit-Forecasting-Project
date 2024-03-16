@@ -1,0 +1,407 @@
+---
+title: "Results as of 10/11"
+author: "Rajath Prabhakar"
+date: "2023-10-11"
+output: html_document
+---
+
+## Data Cleaning
+
+### Step 1
+
+First took the liwc22 csv files and fed them into the below script. 
+
+```{r}
+#combine city files with allcities filtered data to produce city_clean file
+#allcities <- fread("Old Data/liwc22_allcities_fromJan2019toMay2020.csv") 
+#allcities <- allcities %>%
+#  mutate(Date = as_datetime(created_utc, tz = "America/Chicago") %>% 
+#           as_date()) %>%
+#  select(-created_utc) %>% 
+#  relocate(Date, .after = 4)
+
+combine_reddit <- function(folder_path, allcities, filename) {
+  
+  # Prepares path of the specific liwc22_ file
+  liwc_file_path <- file.path(folder_path, filename)
+  
+  # Read the specific liwc22_ file into a data frame
+  liwc_df <- fread(liwc_file_path)
+  liwc_df <- liwc_df %>% 
+    mutate(Date = as_datetime(created_utc, tz = "America/Chicago") %>% 
+             as_date()) %>%
+    select(-created_utc) %>% 
+    relocate(Date, .after = 4)
+  
+  # Extract the city name from the specified file name (e.g., liwc22_Atlanta.csv -> "Atlanta")
+  city_name <- gsub("^liwc22_(.+)\\.csv$", "\\1", filename)
+  
+  # Filter the data from allcities for the corresponding city based on the subreddit column
+  city_data <- allcities %>%
+    filter(subreddit == city_name)
+  message(paste("Finished filtering", city_name))
+  
+  # Check if city_data is empty
+  if (nrow(city_data) == 0) {
+    message(paste("No matching data for city:", city_name))
+    return(NULL)
+  }
+  
+  # Combine the data from allcities with the liwc22_ data
+  combined_df <- bind_rows(city_data, liwc_df)
+  
+  # Create a new file with the combined data (e.g., "Atlanta_clean.csv")
+  fwrite(combined_df, paste0(city_name, "_clean.csv"))
+  
+  message(paste(city_name, "exported to local folder"))
+}
+
+```
+
+The above reads a CSV file ("liwc22_allcities_fromJan2019toMay2020.csv") into a data frame using the fread() function and processes it. It converts a timestamp column (created_utc) into a date, removes the original timestamp column, and repositions the date column to be the fourth column in the data frame.
+
+It defines a function called 'combine_reddit()' that takes as input a folder path, a previously processed data frame allcities, and a specific file name (e.g., "liwc22_Atlanta.csv"). The function reads another CSV file specified by the filename, processes it similarly to the first data frame, and extracts the city name from the filename. It then filters the allcities data for rows corresponding to that city, combines it with the newly processed data, and exports the combined data as a new CSV file with a name like "Atlanta_clean.csv."
+    
+The code checks if the filtered data is empty, and if so, it prints a message and returns NULL.
+
+The combined data, including the additional LIWC22 data, is exported to a local folder as a new CSV file, and a message is printed to indicate the successful export.
+
+```{r}
+process_reddit_files <- function(folder_path, filename) {
+  file_path <- file.path(folder_path, filename)
+  data <- fread(file_path)
+  data <- data %>%
+    mutate(author = replace(author, author %in% c("[deleted]", "AutoModerator"), NA),
+           body = replace(body, body == "[removed]", NA)) %>%
+    na.omit()
+  
+  new_data <- data %>% select(-c(1:4, 6:10))
+  means <- data.frame(Date = unique(new_data$Date))
+  
+  for (col in colnames(new_data)[-1]) {
+    col_means <- tapply(new_data[[col]], new_data$Date, mean)
+    means[[paste0("mean_", col)]] <- col_means[match(means$Date, names(col_means))]
+  }
+  
+  means_significant <- means %>%
+    select(Date, starts_with("mean_")) %>%
+    mutate_at(vars(starts_with("mean_")),
+              list(~rollmean(., k = 7, fill = NA, align = "right"))) %>% 
+    arrange(Date)
+  
+  # Extract city name from the filename
+  city_name <- gsub("_clean.csv$", "", basename(filename))
+  
+  # Export the data frame with the modified city name in the filename
+  output_filename <- paste0(city_name, "_daily.csv")
+  
+  fwrite(means_significant, output_filename)
+  
+  message(paste(output_filename, "exported to local folder"))
+  #return(means_significant)
+}
+
+```
+  It takes as input a folder_path and a filename, reads a CSV file located at the specified path, and stores it in a data frame using the fread() function.
+
+It processes the data within the data frame by:
+
+  Replacing certain values in the "author" and "body" columns. Authors with values "[deleted]" or "AutoModerator" are replaced with NA, and any instances of "[removed]" in the "body" column are also replaced with NA.
+  
+  Removing rows with missing values using na.omit().
+
+It creates a new data frame called "means" to calculate the means of specific columns over unique dates in the "Date" column.
+
+For each column (other than the "Date" column), it calculates the mean values using tapply() and appends these means to the "means" data frame, with column names prefixed by "mean_".
+
+It applies a rolling mean (7-day mean) to the columns with names starting with "mean_" and arranges the data frame by date, creating a new data frame called "means_significant".
+
+The code extracts the city name from the input filename using regular expressions and creates an output filename with the modified city name, like "cityname_daily.csv".
+
+It exports the "means_significant" data frame to a CSV file with the modified city name in the filename.
+
+A message is printed indicating the successful export of the data.
+
+```{r}
+covid_cases <- read.csv("Covid Data/time_series_covid19_confirmed_US.csv")
+covid_cases <- covid_cases %>% 
+  mutate(across(starts_with("X"), ~ as.numeric(.)))
+colnames(covid_cases) <- gsub("^X", "", colnames(covid_cases))
+
+covid_deaths <- read.csv("Covid Data/time_series_covid19_deaths_US.csv")
+#head(covid_deaths)
+covid_deaths <- covid_deaths %>% 
+  mutate(across(starts_with("X"), ~ as.numeric(.)))
+colnames(covid_deaths) <- gsub("^X", "", colnames(covid_deaths))
+
+crosswalk <- read.csv("modified_crosswalk.csv")
+new_colnames <- gsub("\\.", "_", colnames(crosswalk))
+colnames(crosswalk) <- new_colnames
+new_crosswalk <- crosswalk %>% select(c(FIPS, MSA_Code, MSA_Title))
+
+cases <- left_join(covid_cases, new_crosswalk, by = "FIPS") %>%
+  mutate(across(starts_with("new_crosswalk"), ~ ifelse(is.na(FIPS), "NA", .))) %>% 
+  select(UID, iso2, iso3, code3, FIPS, MSA_Code, MSA_Title, everything())
+cases <- cases %>% 
+  gather(key = "Date", value = "Value", "1.22.20":ncol(cases)) %>% 
+  select(Date, everything()) 
+cases$Date <- as.Date(cases$Date, format = "%m.%d.%y")
+cases <- cases %>% rename(Cases = Value)
+
+deaths <- left_join(covid_deaths, new_crosswalk, by = "FIPS") %>% 
+  mutate(across(starts_with("new_crosswalk"), ~ ifelse(is.na(FIPS), "NA", .))) %>% 
+  select(UID, iso2, iso3, code3, FIPS, MSA_Code, MSA_Title, everything())
+deaths <- deaths %>% 
+  gather(key = "Date", value = "Value", "1.22.20":ncol(deaths)) %>% 
+  select(Date, everything()) 
+deaths$Date <- as.Date(deaths$Date, format = "%m.%d.%y")
+deaths <- deaths %>% rename(Deaths = Value)  
+
+ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code = NULL, city = NULL,
+                                state = NULL, plots = TRUE, lags = "both") {
+  #folder path - give name of folder or path to folder
+  #filename - give name of file within folder_path
+  #explanatory - if not null, function only runs for one variable. If null, runs for all variables
+  #code - give MSA Code starting with C
+  #plots - If TRUE, graph plots. If false, don't graph CCF plots. 
+  #lags - can be "negative", "positive", or "both"
+  
+  file_path <- file.path(folder_path, filename)
+  #print(file_path)
+  data <- fread(file_path)
+  data$Date <- as.Date(data$Date)
+  
+  if (!is.null(code)) {
+    city_msa_cases <- cases %>% 
+      filter(MSA_Code == code) %>% 
+      group_by(Date) %>% 
+      summarize(Cases = sum(Cases))
+    #set up for ccf
+    city_msa_deaths <- deaths %>% 
+      filter(MSA_Code == code) %>% 
+      group_by(Date) %>% 
+      summarize(Deaths = sum(Deaths))
+
+    city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "Date") %>% 
+      mutate(Daily_Cases = Cases - lag(Cases, default = 0),
+             Daily_Deaths = Deaths - lag(Deaths, default = 0),
+             Daily_Cases7 = rollmean(Daily_Cases, k = 7, fill = NA),
+             Daily_Deaths7 = rollmean(Daily_Deaths, k = 7, fill = NA))
+    city_combined$Daily_Cases7 <- round(city_combined$Daily_Cases7, 2)
+    city_combined$Daily_Deaths7 <- round(city_combined$Daily_Deaths7, 2)
+    city_combined <- left_join(city_combined, data, by = "Date") %>% 
+      na.omit()
+    #return(city_combined)
+    
+    if (!is.null(explanatory)) {
+      #run ccf for one variable
+      if (plots) {
+        #show plots
+        ccf_result <- ccf(city_combined$Daily_Cases7, city_combined[[explanatory]], plot = FALSE, lag.max = 40)
+        acf_table <- data.frame(Lag = ccf_result$lag, ACF = ccf_result$acf)
+        acf_table <- acf_table %>%
+          mutate(Sign = case_when(
+            Lag <= 0 ~ "Lag < 0 ",
+            TRUE ~ "Lag > 0"
+          )) %>%
+          group_by(Sign) %>% 
+          summarise(Max_ACF = max(ACF), 
+                    Lag = Lag[which.max(ACF)]) %>% 
+          mutate(Variable = explanatory,
+                 City = city,
+                 State = state) %>% 
+          select(Variable, City, State, Max_ACF, Lag)
+        
+        actual_column_name <- colnames(city_combined)[which(colnames(city_combined) == explanatory)]
+        
+        plot(ccf_result, main = paste("Daily Cases &", actual_column_name))
+        return(acf_table)
+        
+        
+      }
+      else {
+        #don't show plots
+        ccf_result <- ccf(city_combined$Daily_Cases7, city_combined[[explanatory]], plot = FALSE, lag.max = 40)
+        acf_table <- data.frame(Lag = ccf_result$lag, ACF = ccf_result$acf)
+        acf_table <- acf_table %>%
+          mutate(Sign = case_when(
+            Lag <= 0 ~ "Lag < 0 ",
+            TRUE ~ "Lag > 0"
+          )) %>%
+          group_by(Sign) %>% 
+          summarise(Max_ACF = max(ACF), 
+                    Lag = Lag[which.max(ACF)]) %>% 
+          mutate(Variable = explanatory, 
+                 City = city,
+                 State = state) %>% 
+          select(Variable, City, State, Max_ACF, Lag)
+        
+        actual_column_name <- colnames(city_combined)[which(colnames(city_combined) == explanatory)]
+        #if (lags == "negative") {
+        #  final_acf_table <- acf_table %>% 
+        #    filter(Sign == "Lag < 0")
+        #  print(final_acf_table)
+        #}
+        
+        
+        return(acf_table)
+      }
+    }
+    
+    else {
+      #run ccf for multiple variables
+      if (plots) {
+        #show plots
+        
+        # Select columns to perform ccf on (excluding the first 7 columns)
+        ccf_columns <- names(city_combined)[8:ncol(city_combined)]
+        
+        acf_tables_list <- list()
+        
+        for (column in ccf_columns) {
+          ccf_result <- ccf(city_combined$Daily_Cases7, city_combined[[column]], plot = FALSE, lag.max = 40)
+          
+          acf_table <- data.frame(Lag = ccf_result$lag, ACF = ccf_result$acf)
+          acf_table <- acf_table %>%
+            mutate(Sign = case_when(
+              Lag <= 0 ~ "Lag < 0",
+              TRUE ~ "Lag > 0")) %>% 
+            group_by(Sign) %>% 
+            summarise(Max_ACF = max(ACF), 
+                      Lag = Lag[which.max(ACF)]) %>% 
+            mutate(Variable = column) %>% 
+            select(Variable, City, State, Max_ACF, Lag)
+          
+          acf_tables_list[[column]] <- acf_table
+          
+          
+          actual_column_name <- colnames(city_combined)[which(colnames(city_combined) == column)]
+          
+          plot(ccf_result, main = paste("Daily Cases &", actual_column_name))
+        }
+        combined_acf_table <- do.call(rbind, acf_tables_list)
+        summary_table_positive <- combined_acf_table %>% 
+          filter(Sign == "Lag > 0") %>%
+          mutate(City = city,
+                 State = state) %>% 
+          select(-c(1)) %>% 
+          arrange(desc(abs(Max_ACF)))
+        summary_table_negative <- combined_acf_table %>% 
+          filter(Sign == "Lag < 0") %>% 
+          mutate(City = city, 
+                 State = state) %>% 
+          select(-c(1)) %>% 
+          arrange(desc(abs(Max_ACF)))
+        if (lags == "negative") {
+          return(summary_table_negative)
+        }
+        else if (lags == "positive") {
+          return(summary_table_positive)
+        }
+        else {
+          return(combined_acf_table %>% select(Variable, City, State, Max_ACF, Lag) %>%
+                   mutate(City = city, State = state))
+        }
+        
+        
+        
+      }
+      
+      else {
+        #don't show plots
+        # Select columns to perform ccf on (excluding the first 7 columns)
+        ccf_columns <- names(city_combined)[8:ncol(city_combined)]
+        
+        acf_tables_list <- list()
+        
+        for (column in ccf_columns) {
+          ccf_result <- ccf(city_combined$Daily_Cases7, city_combined[[column]], plot = FALSE,
+                            lag.max = 40)
+          
+          acf_table <- data.frame(Lag = ccf_result$lag, ACF = ccf_result$acf)
+          acf_table <- acf_table %>%
+            mutate(Sign = case_when(
+              Lag <= 0 ~ "Lag < 0",
+              TRUE ~ "Lag > 0")) %>% 
+            group_by(Sign) %>% 
+            summarise(Max_ACF = max(ACF), 
+                      Lag = Lag[which.max(ACF)]) %>% 
+            mutate(Variable = column)
+          
+          acf_tables_list[[column]] <- acf_table
+          
+        }
+        combined_acf_table <- do.call(rbind, acf_tables_list)
+        summary_table_positive <- combined_acf_table %>% 
+          filter(Sign == "Lag > 0") %>%
+          mutate(City = city,
+                 State = state) %>% 
+          select(-c(1)) %>% 
+          arrange(desc(abs(Max_ACF)))
+        summary_table_negative <- combined_acf_table %>% 
+          filter(Sign == "Lag < 0") %>% 
+          mutate(City = city, 
+                 State = state) %>% 
+          select(-c(1)) %>% 
+          arrange(desc(abs(Max_ACF)))
+        if (lags == "negative") {
+          return(summary_table_negative)
+        }
+        else if (lags == "positive") {
+          return(summary_table_positive)
+        }
+        else {
+          return(combined_acf_table %>% 
+                   select(-c(1)) %>% mutate(City = city, State = state))
+        }
+      }
+    }
+  }
+  else {
+    stop("Missing either state or city input")
+  }
+}
+
+```
+
+The function takes several input parameters, including folder_path (folder containing data files), filename (name of the file within the folder), explanatory (a specific variable for which CCF will be calculated), code (MSA code), city (city name), state (state name), plots (a logical flag indicating whether to plot CCF graphs), and lags (specifying "negative," "positive," or "both" for the direction of lags).
+
+It reads data from the specified CSV file and processes it by converting the "Date" column to a date format.
+
+If the code parameter is provided, the function calculates CCF for the specified variable (if explanatory is not null) or for all variables (if explanatory is null) by considering daily COVID-19 cases and the selected variable.
+
+For each variable, CCF is calculated using the ccf function. If plots is set to TRUE, the function generates and displays CCF plots. It also creates a summary table showing the maximum CCF value, the corresponding lag, and other relevant information.
+
+The function exports summary tables based on the direction of lags. If lags is set to "negative," it returns a summary table for negative lags, and if it's set to "positive," it returns a summary table for positive lags. If lags is set to "both," it returns a summary table for both negative and positive lags.
+
+This function was used to created a file called "combined_data.csv" using the code below. 
+
+```{r}
+atlanta <- ccf_city_case_files("Daily Data", "atlanta_daily.csv", code = "C1206", city = "Atlanta", state = "Georgia", plots = FALSE, lags = "both")
+austin <- ccf_city_case_files("Daily Data", "austin_daily.csv", code = "C1242", city = "Austin", state = "Texas", plots = FALSE, lags = "both")
+boston <- ccf_city_case_files("Daily Data", "boston_daily.csv", code = "C1446", city = "Boston", state = "Massachusetts", plots = FALSE, lags = "both")
+chicago <- ccf_city_case_files("Daily Data", "chicago_daily.csv", code = "C1698", city = "Chicago", state = "Illinois", plots = FALSE, lags = "both")
+houston <- ccf_city_case_files("Daily Data", "houston_daily.csv", code = "C2642", city = "Houston", state = "Texas", plots = FALSE, lags = "both")
+LA <- ccf_city_case_files("Daily Data", "losangeles_daily.csv", code = "C3108", city = "Los Angeles", state = "California", plots = FALSE, lags = "both")
+nashville <- ccf_city_case_files("Daily Data", "nashville_daily.csv", code = "C3498", city = "Nashville", state = "Tennessee", plots = FALSE, lags = "both")
+nyc <- ccf_city_case_files("Daily Data", "nyc_daily.csv", code = "C3562", city = "New York", state = "New York", plots = FALSE, lags = "both")
+orlando <- ccf_city_case_files("Daily Data", "orlando_daily.csv", code = "C3674", city = "Orlando", state = "Florida", plots = FALSE, lags = "both")
+philadelphia <- ccf_city_case_files("Daily Data", "philadelphia_daily.csv", code = "C3798", city = "Philadelphia", state = "Pennsylvania", plots = FALSE, lags = "both")
+phoenix <- ccf_city_case_files("Daily Data", "phoenix_daily.csv", code = "C3806", city = "Phoenix", state = "Arizona", plots = FALSE, lags = "both")
+portland <- ccf_city_case_files("Daily Data", "portland_daily.csv", code = "C3890", city = "Portland", state = "Oregon", plots = FALSE, lags = "both")
+raleigh <- ccf_city_case_files("Daily Data", "raleigh_daily.csv", code = "C3958", city = "Raleigh", state = "North Carolina", plots = FALSE, lags = "both")
+san_diego <- ccf_city_case_files("Daily Data", "sandiego_daily.csv", code = "C4174", city = "San Diego", state = "California", plots = FALSE, lags = "both")
+san_francisco <- ccf_city_case_files("Daily Data", "sanfrancisco_daily.csv", code = "C4186", city = "San Francisco", state = "California", plots = FALSE, lags = "both")
+seattle <- ccf_city_case_files("Daily Data", "seattle_daily.csv", code = "C4266", city = "Seattle", state = "Washington", plots = FALSE, lags = "both")
+stl <- ccf_city_case_files("Daily Data", "stlouis_daily.csv", code = "C4118", city = "St. Louis", state = "Missouri", plots = FALSE, lags = "both")
+washington <- ccf_city_case_files("Daily Data", "washingtondc_daily.csv", code = "C4790", city = "Washington", state = "Maryland", plots = FALSE, lags = "both")
+
+
+
+combo <- bind_rows(atlanta, austin, boston, chicago, houston, LA, nashville, nyc, orlando, philadelphia, phoenix, portland, raleigh, san_diego, san_francisco, seattle, stl, washington) %>% 
+  select(City, State, Variable, Max_ACF, Lag)
+fwrite(combo, paste("Results/CSV Files/combined_data.csv"))
+```
+
+The above code creates a table listing the city, the state, the variable with the largest absolute value ACF, the ACF value of the variable, and the lag where that ACF value took place. It does this for both positive and negative lags. 
+
