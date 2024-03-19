@@ -19,6 +19,13 @@ Next, a function called combine_reddit() is defined. It takes a folder path, the
 3. process_reddit_files().R
 
 This function takes the cleaned Reddit files (seen in the combine_reddit() function), calculates the daily mean values for each numeric column, applies a rolling mean (7 days), and exports the resulting data frame to a new CSV file called *city*_clean.csv. 
+- Constructs the file path for the specified filename.
+- Reads the file into a data table called data
+- Cleans the data by replacing [deleted] and AutoModerator values in the author column with NA, and replacing [removed] values in the body column with NA
+- For each numerical column in the original data, it calculates the mean value for each date and adds a new column to the means data frame with the column name prefixed with "mean_"
+- Applies a rolling mean with a window size of 7 days to each mean_ column in the means_significant data frame, filling missing values with NA and aligning the window to the right.
+- Extracts the city name from the input filename by removing the _clean.csv suffix
+- Writes the means_significant data frame to a CSV file with the constructed output filename
 
 4. ccf_city_case_files().R
 
