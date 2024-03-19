@@ -22,7 +22,7 @@ This function takes the cleaned Reddit files (seen in the combine_reddit() funct
 
 4. ccf_city_case_files().R
 
-performs cross-correlation function (CCF) analysis between daily COVID-19 cases and various explanatory variables for a specified city or metropolitan statistical area (MSA)
+This function performs cross-correlation function (CCF) analysis between daily COVID-19 cases and various explanatory variables for a specified city or metropolitan statistical area (MSA)
   - reads COVID-19 cases and deaths data from CSV files and census data from an Excel file.
   - cleans and preprocesses the data, including joining the COVID-19 data with census data and crosswalk data to obtain MSA information.
   - arguments:
