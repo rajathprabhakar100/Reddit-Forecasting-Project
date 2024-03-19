@@ -41,10 +41,19 @@ This function performs cross-correlation function (CCF) analysis between daily C
     - If an explanatory variable is provided, it runs the CCF analysis for that variable and returns a table with the maximum cross-correlation value and corresponding lag.
     - If no explanatory variable is provided, it runs the CCF analysis for all variables (except the first 9 columns) and returns a table with the maximum cross-correlation values and corresponding lags for each variable
     - generate CCF plots if plots = TRUE
-    - returned table includes the variable name, city, state, maximum cross-correlation value, and corresponding lag 
-  
+    - returned table includes the variable name, city, state, maximum cross-correlation value, and corresponding lag
+   
 
-
+4. covid_data_merging.R
+  - starts by selecting specific columns from the deaths dataset and creating a new dataset called deaths1
+  - performs a left join between the cases dataset and deaths1 to create a new dataset called cases_and_deaths
+  - defines two vectors: MSA_Codes and Cities, which contain the MSA codes and names of cities, respectively
+  - creates a data frame table2 by combining the MSA_Codes and Cities vectors
+  - defines a function process_daily_file that reads a CSV file, selects specific columns, and adds the corresponding MSA code to the data
+  - gets a list of file names in the "Daily Data" folder and applies the process_daily_file function to each file, using the corresponding MSA code. The resulting data frames are combined into data_list
+  - data_list is then combined into a single data frame called combined_reddit_df using bind_rows, and joined with table2 to add the city names
+  - for the cases_and_deaths dataset, it filters by the MSA_Codes, groups by MSA_Code, MSA_Title, and Date, and calculates various statistics like daily cases, daily deaths, and 7-day rolling averages
+  - resulting dataset cases_and_deaths1 is then joined with combined_reddit_df to create reddit_and_cases
 5. forecast_reddit().R
 
 ## Cities Studied
