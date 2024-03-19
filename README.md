@@ -21,6 +21,7 @@ Next, a function called combine_reddit() is defined. It takes a folder path, the
 This function takes the cleaned Reddit files (seen in the combine_reddit() function), calculates the daily mean values for each numeric column, applies a rolling mean (7 days), and exports the resulting data frame to a new CSV file called *city*_clean.csv. 
 
 4. ccf_city_case_files().R
+
 performs cross-correlation function (CCF) analysis between daily COVID-19 cases and various explanatory variables for a specified city or metropolitan statistical area (MSA)
   - reads COVID-19 cases and deaths data from CSV files and census data from an Excel file.
   - cleans and preprocesses the data, including joining the COVID-19 data with census data and crosswalk data to obtain MSA information.
