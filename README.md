@@ -45,6 +45,7 @@ This function performs cross-correlation function (CCF) analysis between daily C
    
 
 4. covid_data_merging.R
+
   - starts by selecting specific columns from the deaths dataset and creating a new dataset called deaths1
   - performs a left join between the cases dataset and deaths1 to create a new dataset called cases_and_deaths
   - defines two vectors: MSA_Codes and Cities, which contain the MSA codes and names of cities, respectively
@@ -54,7 +55,17 @@ This function performs cross-correlation function (CCF) analysis between daily C
   - data_list is then combined into a single data frame called combined_reddit_df using bind_rows, and joined with table2 to add the city names
   - for the cases_and_deaths dataset, it filters by the MSA_Codes, groups by MSA_Code, MSA_Title, and Date, and calculates various statistics like daily cases, daily deaths, and 7-day rolling averages
   - resulting dataset cases_and_deaths1 is then joined with combined_reddit_df to create reddit_and_cases
+
 5. forecast_reddit().R
+
+- file consisting of three functions, with each corresponding to the number of weeks of training data (4 weeks, 8 weeks, cumulative)
+- loads a dataset called reddit_and_cases from a CSV file
+- filters the dataset to include only the specified city and calculates rolling averages for the mean_illness column over different time windows (7, 14, and 21 days)
+- creates four linear regression models for the city, using different combinations of the mean_illness and rolling averages as predictors for the Daily_Cases7 (7-day average of daily cases) target variable
+- creates a new dataset called city_projection_data that includes the future dates for which the forecast will be made, along with the rolling averages of mean_illness
+- calculates the forecast for Daily_Cases7 using the appropriate linear regression model and adds the forecasted values, confidence intervals, and R-squared values to the city_projection_data dataset
+- If the csv option is set to TRUE, it saves the city_projection_data dataset as a CSV file in the "Results/Projections/<city_name>" directory with a filename that includes the date
+- If the csv option is set to FALSE, it returns a list containing the city_projection_data dataset and the summaries of the four linear regression models
 
 ## Cities Studied
 - Atlanta
