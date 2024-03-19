@@ -17,7 +17,12 @@ Next, a function called combine_reddit() is defined. It takes a folder path, the
   - Combines the filtered allcities data with the liwc_df data using bind_rows
   - Writes the combined data to a new CSV file with the city name and _clean.csv suffix
 3. process_reddit_files().R
+
+This function takes the cleaned Reddit files (seen in the combine_reddit() function), calculates the daily mean values for each numeric column, applies a rolling mean (7 days), and exports the resulting data frame to a new CSV file called *city*_clean.csv. 
+
 4. ccf_city_case_files().R
+
+5. forecast_reddit().R
 
 ## Cities Studied
 - Atlanta
