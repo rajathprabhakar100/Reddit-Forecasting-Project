@@ -1,0 +1,27 @@
+---
+title: "Complete Analysis"
+author: "Rajath Prabhakar"
+date: "2024-03-19"
+output: html_document
+---
+```{r setup, include=FALSE}
+#knitr::opts_knit$set(root.dir = "~/Reddit-Forecasting-Project/Current/")
+```
+
+```{r}
+library(here)
+library(rprojroot)
+
+root <- rprojroot::find_root(rprojroot::has_file("Complete Analysis.Rmd"))
+#here::i_am(root)
+
+#source(here("Functions", "02 - combine_reddit().R"))
+```
+
+
+##Using the Raw Data
+
+```{r}
+source(here("Functions", "02 - combine_reddit().R"))
+```
+
