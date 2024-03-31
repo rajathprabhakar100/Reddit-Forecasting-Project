@@ -11,8 +11,368 @@ library(here)
 
 
 ##Using the Raw Data
-
+#Skip chunks at line 15 and line 33 if you would not like to wait forever for the chunks to run
 ```{r}
 source(here("Functions", "02 - combine_reddit().R"))
 ```
+First, the csv file containing Reddit data from all studied cities is loaded into R. Then, this data is cleaned by converting the created_utc column to a date format, removing the created_utc column, and relocating the Date column.
+
+Next, a function called combine_reddit() is defined. It takes a folder path, the aformentioned allcities data frame, and a file name as arguments. Inside the function, for the individual city Reddit data:
+
+    constructs a file path for the specified file name
+    Reads the file into a data frame called liwc_df
+    Cleans the liwc_df data in an identical manner as the allcities data
+    Extracts the city name from the filename
+    Filters the allcities data for the corresponding city based on the subreddit column
+    Combines the filtered allcities data with the liwc_df data using bind_rows
+    Writes the combined data to a new CSV file with the city name and _clean.csv suffix
+
+For example:
+combine_reddit("Source Data/01 - Raw", allcities, filename = "liwc22_Atlanta.csv")
+
+```{r}
+source(here("Functions", "03 - process_reddit_files().R"))
+```
+This function takes the cleaned Reddit files (seen in the combine_reddit() function), calculates the daily mean values for each numeric column, applies a rolling mean (7 days), and exports the resulting data frame to a new CSV file called city_clean.csv. 
+
+For example:
+process_reddit_files(folder_path = "Source Data/02 - Clean Data/", filename = "Atlanta_clean.csv")
+
+```{r}
+source(here("Functions", "04 - ccf_city_case_files().R"))
+```
+
+Create a combined data frame using Max ACF and Lag where Max ACF takes place
+```{r}
+atlanta <- ccf_city_case_files("Source Data/03 - Daily Data", "atlanta_daily.csv", code = "C1206", city = "Atlanta", state = "Georgia", plots = FALSE, lags = "both")
+austin <- ccf_city_case_files("Source Data/03 - Daily Data", "austin_daily.csv", code = "C1242", city = "Austin", state = "Texas", plots = FALSE, lags = "both")
+boston <- ccf_city_case_files("Source Data/03 - Daily Data", "boston_daily.csv", code = "C1446", city = "Boston", state = "Massachusetts", plots = FALSE, lags = "both")
+chicago <- ccf_city_case_files("Source Data/03 - Daily Data", "chicago_daily.csv", code = "C1698", city = "Chicago", state = "Illinois", plots = FALSE, lags = "both")
+houston <- ccf_city_case_files("Source Data/03 - Daily Data", "houston_daily.csv", code = "C2642", city = "Houston", state = "Texas", plots = FALSE, lags = "both")
+LA <- ccf_city_case_files("Source Data/03 - Daily Data", "losangeles_daily.csv", code = "C3108", city = "Los Angeles", state = "California", plots = FALSE, lags = "both")
+
+nashville <- ccf_city_case_files("Source Data/03 - Daily Data", "nashville_daily.csv", code = "C3498", city = "Nashville", state = "Tennessee", plots = FALSE, lags = "both")
+nyc <- ccf_city_case_files("Source Data/03 - Daily Data", "nyc_daily.csv", code = "C3562", city = "New York", state = "New York", plots = FALSE, lags = "both")
+orlando <- ccf_city_case_files("Source Data/03 - Daily Data", "orlando_daily.csv", code = "C3674", city = "Orlando", state = "Florida", plots = FALSE, lags = "both")
+philadelphia <- ccf_city_case_files("Source Data/03 - Daily Data", "philadelphia_daily.csv", code = "C3798", city = "Philadelphia", state = "Pennsylvania", plots = FALSE, lags = "both")
+phoenix <- ccf_city_case_files("Source Data/03 - Daily Data", "phoenix_daily.csv", code = "C3806", city = "Phoenix", state = "Arizona", plots = FALSE, lags = "both")
+portland <- ccf_city_case_files("Source Data/03 - Daily Data", "portland_daily.csv", code = "C3890", city = "Portland", state = "Oregon", plots = FALSE, lags = "both")
+raleigh <- ccf_city_case_files("Source Data/03 - Daily Data", "raleigh_daily.csv", code = "C3958", city = "Raleigh", state = "North Carolina", plots = FALSE, lags = "both")
+san_diego <- ccf_city_case_files("Source Data/03 - Daily Data", "sandiego_daily.csv", code = "C4174", city = "San Diego", state = "California", plots = FALSE, lags = "both")
+san_francisco <- ccf_city_case_files("Source Data/03 - Daily Data", "sanfrancisco_daily.csv", code = "C4186", city = "San Francisco", state = "California", plots = FALSE, lags = "both")
+seattle <- ccf_city_case_files("Source Data/03 - Daily Data", "seattle_daily.csv", code = "C4266", city = "Seattle", state = "Washington", plots = FALSE, lags = "both")
+stl <- ccf_city_case_files("Source Data/03 - Daily Data", "stlouis_daily.csv", code = "C4118", city = "St. Louis", state = "Missouri", plots = FALSE, lags = "both")
+washington <- ccf_city_case_files("Source Data/03 - Daily Data", "washingtondc_daily.csv", code = "C4790", city = "Washington", state = "Maryland", plots = FALSE, lags = "both")
+
+
+
+combo <- bind_rows(atlanta, austin, boston, chicago, houston, LA, nashville, nyc, orlando, philadelphia, phoenix, portland, raleigh, san_diego, san_francisco, seattle, stl, washington) %>% 
+  select(City, State, Variable, Max_ACF, Lag, Est_Population, Population)
+#fwrite(combo, paste("Results/CSV Files/combined_data.csv"))
+
+```
+
+```{r}
+combo
+```
+
+
+```{r}
+source(here("Results/R codes", "AverageCityRank.R"))
+```
+```{r}
+rank_avg
+```
+
+mean_illness has the highest average rank for positive lags, while mean_analytic has the highest average rank for negative lags. 
+
+```{r}
+source(here("Results/R codes", "Code for table_of_average_acf_lag.R"))
+```
+```{r}
+table1
+```
+
+mean_illness has the highest correlation with Covid cases, and has an average lag of about 14 days. 
+
+```{r}
+figure1 <- ggplot(table1, aes(x = reorder(Variable,
+                               abs(Average_ACF_positive)),
+                   y = Average_ACF_positive, 
+                   fill = Type))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average ACF",
+       y = "Variable",
+       title = "Variables by Average Correlations (Positive Lags)")
+figure1
+```
+
+```{r}
+figure2 <- ggplot(table1, aes(x = reorder(Variable, -abs(Average_ACF_negative)),
+                   y = Average_ACF_negative, fill = Type))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average ACF",
+       y = "Variable",
+       title = "Variables by Average Correlations (Negative Lags)")
+figure2
+
+```
+
+```{r}
+figure3 <- ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_pos)),
+                     y = avg_rank_pos, fill = Type))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average Rank",
+       y = "Variable",
+       title = "Variables by Average Rank (Positive Lags)")
+figure3
+```
+
+```{r}
+figure4 <- ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_neg)),
+                     y = avg_rank_neg, fill = Type))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average Rank",
+       y = "Variable",
+       title = "Variables by Average Rank (Negative Lags)")
+figure4
+```
+
+```{r}
+figure5 <- ggplot(table1, aes(x = reorder(Variable, Average_Lag_positive), 
+                   y = Average_Lag_positive, fill = Type))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average Lag",
+       y = "Variable",
+       title = "Variables by Average Lag (Positive Lags)")
+figure5
+```
+
+```{r}
+figure6 <- ggplot(table1, aes(x = reorder(Variable, Average_Lag_negative), 
+                   y = Average_Lag_negative, fill = Type))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x = "Average Lag",
+       y = "Variable",
+       title = "Variables by Average Lag (Negative Lags)")
+figure6
+```
+
+```{r}
+top12variables <- c("mean_illness", "mean_health", "mean_family", "mean_Tone",
+                    "mean_fatigue", "mean_Analytic", "mean_allnone", "mean_emo_pos",
+                    "mean_mental", "mean_emo_sad", "mean_tone_pos", "mean_emotion")
+
+top_12 <- combined %>% 
+  filter(Lag > 0 & Variable %in% top12variables)
+figure7 <- ggplot(top_12, aes(x = Lag, y = Max_ACF))+
+  geom_point()+
+  labs(x = "Lag",
+       y = "Max Correlation", 
+       title = "Scatter Plot of Top 12 Reddit Indicators by Max Correlation")+
+  facet_wrap(~ Variable)
+figure7
+
+```
+```{r}
+source(here("Functions", "05 - covid_data_merging.R"))
+```
+
+```{r}
+reddit_and_cases1 <- reddit_and_cases %>%
+  group_by(MSA_Code) %>%
+  mutate(Scaled_DailyCases7 = round(scale(Daily_Cases7), 2),
+         Scaled_DailyDeaths7 = round(scale(Daily_Deaths7), 2),
+         Scaled_mean_health = round(scale(mean_health), 2),
+         Scaled_mean_illness = round(scale(mean_illness), 2))
+```
+
+
+```{r}
+figure8 <- ggplot(reddit_and_cases1, aes(x = Date))+
+  geom_line(aes(y = Scaled_DailyCases7, color = "Cases"))+
+  geom_line(aes(y = Scaled_mean_illness, color = "mean_illness"))+
+  facet_wrap(~ City, ncol = 4)+
+  scale_color_manual(values = c("Cases" = "blue", "mean_illness" = "orange"))+
+  labs(x = "Date",
+       y = "Z Score",
+       title = "Time Series of mean_illness vs Cases")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels
+        axis.text = element_text(size = 10),  # Adjust font size of axis labels
+        plot.margin = margin(20, 20, 20, 20))
+figure8
+
+```
+
+For each city, the above plot shows the time series of mean_illness vs Covid cases. 
+```{r}
+figure9 <- ggplot(reddit_and_cases1, aes(x = Date))+
+  geom_line(aes(y = Scaled_DailyCases7, color = "Cases"))+
+  geom_line(aes(y = Scaled_mean_health, color = "mean_health"))+
+  facet_wrap(~ City, nrow = 4)+
+  scale_color_manual(values = c("Cases" = "blue", "mean_health" = "red"))+
+  labs(x = "Date",
+       y = "Z Score",
+       title = "Time Series of mean_Health vs Cases")
+figure9
+```
+For each city, the above plot shows the time series of mean_health vs Covid cases. 
+
+```{r}
+source(here("Functions", "06 - forecast_reddit().R"))
+```
+
+forecast_reddit() is a file consisting of three functions, with each corresponding to the number of weeks of training data (4 weeks, 8 weeks, cumulative). 
+    loads a dataset called reddit_and_cases from a CSV file
+    filters the dataset to include only the specified city and calculates rolling averages for the mean_illness column over different time windows (7, 14, and 21 days)
+    creates four linear regression models for the city, using different combinations of the mean_illness and rolling averages as predictors for the Daily_Cases7 (7-day average of daily cases) target variable
+    creates a new dataset called city_projection_data that includes the future dates for which the forecast will be made, along with the rolling averages of mean_illness
+    calculates the forecast for Daily_Cases7 using the appropriate linear regression model and adds the forecasted values, confidence intervals, and R-squared values to the city_projection_data dataset
+    If the csv option is set to TRUE, it saves the city_projection_data dataset as a CSV file in the "Results/Projections/<city_name>" directory with a filename that includes the date
+    If the csv option is set to FALSE, it returns a list containing the city_projection_data dataset and the summaries of the four linear regression models
+    
+
+```{r}
+data_list_4_weeks <- list()
+for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
+  projection <- forecast_reddit(date = date, city = "Atlanta")$projection
+  projection1 <- projection %>% 
+    slice(c(1,8,15,22)) %>%
+    summarize(Forecast_Date = Date[1],
+              R2_0 = R2[1],
+              R2_7 = R2[2],
+              R2_14 = R2[3],
+              R2_21 = R2[4],
+              fcast0_lwr = Forecast_Lwr[1],
+              fcast0_mean = Forecast[1],
+              fcast0_upr = Forecast_Upr[1],
+              fcast7_lwr = Forecast_Lwr[2],
+              fcast7_mean = Forecast[2],
+              fcast7_upr = Forecast_Upr[2],
+              fcast14_lwr = Forecast_Lwr[3],
+              fcast14_mean = Forecast[3],
+              fcast14_upr = Forecast_Upr[3],
+              fcast21_lwr = Forecast_Lwr[4],
+              fcast21_mean = Forecast[4],
+              fcast21_upr = Forecast_Upr[4],
+              case0 = Daily_Cases[1],
+              target_date7 = Date[2],
+              case7 = Daily_Cases[2],
+              target_date14 = Date[3],
+              case14 = Daily_Cases[3],
+              target_date21 = Date[4],
+              case21 = Daily_Cases[4])
+  data_list_4_weeks[[length(data_list_4_weeks) + 1]] <- projection1
+}
+final_data_atlanta_4 <- do.call(rbind, data_list_4_weeks)
+
+```
+
+
+```{r}
+data_list_8_weeks <- list()
+for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
+  projection <- forecast_reddit1(date = date, city = "Atlanta")$projection
+  projection1 <- projection %>% 
+    slice(c(1,8,15,22)) %>%
+    summarize(Forecast_Date = Date[1],
+              R2_0 = R2[1],
+              R2_7 = R2[2],
+              R2_14 = R2[3],
+              R2_21 = R2[4],
+              fcast0_lwr = Forecast_Lwr[1],
+              fcast0_mean = Forecast[1],
+              fcast0_upr = Forecast_Upr[1],
+              fcast7_lwr = Forecast_Lwr[2],
+              fcast7_mean = Forecast[2],
+              fcast7_upr = Forecast_Upr[2],
+              fcast14_lwr = Forecast_Lwr[3],
+              fcast14_mean = Forecast[3],
+              fcast14_upr = Forecast_Upr[3],
+              fcast21_lwr = Forecast_Lwr[4],
+              fcast21_mean = Forecast[4],
+              fcast21_upr = Forecast_Upr[4],
+              case0 = Daily_Cases[1],
+              target_date7 = Date[2],
+              case7 = Daily_Cases[2],
+              target_date14 = Date[3],
+              case14 = Daily_Cases[3],
+              target_date21 = Date[4],
+              case21 = Daily_Cases[4])
+  
+  data_list_8_weeks[[length(data_list_8_weeks) + 1]] <- projection1
+}
+final_data_atlanta_8 <- do.call(rbind, data_list_8_weeks)
+
+```
+
+```{r}
+data_list_cumulative <- list()
+for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
+  projection <- forecast_reddit2(date = date, city = "Atlanta")$projection
+  projection1 <- projection %>% 
+    slice(c(1,8,15,22)) %>%
+    summarize(Forecast_Date = Date[1],
+              R2_0 = R2[1],
+              R2_7 = R2[2],
+              R2_14 = R2[3],
+              R2_21 = R2[4],
+              fcast0_lwr = Forecast_Lwr[1],
+              fcast0_mean = Forecast[1],
+              fcast0_upr = Forecast_Upr[1],
+              fcast7_lwr = Forecast_Lwr[2],
+              fcast7_mean = Forecast[2],
+              fcast7_upr = Forecast_Upr[2],
+              fcast14_lwr = Forecast_Lwr[3],
+              fcast14_mean = Forecast[3],
+              fcast14_upr = Forecast_Upr[3],
+              fcast21_lwr = Forecast_Lwr[4],
+              fcast21_mean = Forecast[4],
+              fcast21_upr = Forecast_Upr[4],
+              case0 = Daily_Cases[1],
+              target_date7 = Date[2],
+              case7 = Daily_Cases[2],
+              target_date14 = Date[3],
+              case14 = Daily_Cases[3],
+              target_date21 = Date[4],
+              case21 = Daily_Cases[4])
+  data_list_cumulative[[length(data_list_cumulative) + 1]] <- projection1
+}
+final_data_atlanta_cumulative <- do.call(rbind, data_list_cumulative)
+
+```
+```{r}
+library(tidyverse)
+library(gridExtra)
+atlanta0_28days <- ggplot(final_data_atlanta_4, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_4$fcast0_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_4$case0)+
+  labs(x = "Date", y = "Cases", title = "Nowcast Results (Weekly)", subtitle = "4 weeks")
+atlanta0_28days
+```
+
+```{r}
+atlanta0_56days <- ggplot(final_data_atlanta_8, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_8$fcast0_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_8$case0)+
+  labs(x = "Date", y = "Cases", title = "Nowcast Forecast Results (Weekly)", subtitle = "8 weeks")
+atlanta0_56days
+```
+```{r}
+atlanta0_cumulative <- ggplot(final_data_atlanta_cumulative, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_cumulative$fcast0_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_cumulative$case0)+
+  labs(x = "Date", y = "Cases", title = "Nowcast Forecast Results (Weekly)", subtitle = "cumulative")
+atlanta0_cumulative
+```
+
 

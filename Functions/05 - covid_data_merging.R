@@ -1,4 +1,4 @@
-source("Functions/03 - ccf_city_case_files().R")
+source("Functions/04 - ccf_city_case_files().R")
 deaths1 <- deaths %>% 
   select(Date, FIPS, MSA_Code, Deaths)
 
@@ -55,9 +55,9 @@ reddit_and_cases <- left_join(cases_and_deaths1, combined_reddit_df) %>%
   #na.omit()
 reddit_and_cases$Date <- as.Date.default(reddit_and_cases$Date, format = "%y-%m-%d")
 
-fwrite(reddit_and_cases, paste("Results/CSV Files/reddit_and_cases_deaths.csv"))
+#fwrite(reddit_and_cases, paste("Results/CSV Files/reddit_and_cases_deaths.csv"))
 
-reddit_and_cases <- read_csv("Results/CSV Files/reddit_and_cases_deaths.csv")
+#reddit_and_cases <- read_csv("Results/CSV Files/reddit_and_cases_deaths.csv")
 
 
 

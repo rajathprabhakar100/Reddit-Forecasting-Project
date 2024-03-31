@@ -4,16 +4,16 @@ library(readr)
 library(zoo)
 library(here)
 library(readxl)
-covid_cases <- read_csv(here("Covid Data/time_series_covid19_confirmed_US.csv")) #%>%
+covid_cases <- read_csv(here("Source Data/Covid Data/time_series_covid19_confirmed_US.csv")) #%>%
   #mutate(across(starts_with("X"), ~ as.numeric(.)))
 #colnames(covid_cases) <- gsub("^X", "", colnames(covid_cases))
 
-covid_deaths <- read_csv(here("Covid Data/time_series_covid19_deaths_US.csv")) %>% 
+covid_deaths <- read_csv(here("Source Data/Covid Data/time_series_covid19_deaths_US.csv")) %>% 
 #head(covid_deaths)
   mutate(across(starts_with("X"), ~ as.numeric(.)))
 colnames(covid_deaths) <- gsub("^X", "", colnames(covid_deaths))
 
-census_data <- read_excel("co-est2022-pop.xlsx", skip = 4)
+census_data <- read_excel("Source Data/co-est2022-pop.xlsx", skip = 4)
 census_data <- census_data %>% 
   rename(County_Title = `United States`,
          estpop2020 = `331449520`,
@@ -22,7 +22,7 @@ census_data <- census_data %>%
          pop2022 = `333287557`)
 census_data$County_Title <- sub("^\\.", "", census_data$County_Title)
 
-crosswalk <- read.csv(here("modified_crosswalk.csv"))
+crosswalk <- read.csv(here("Source Data/modified_crosswalk.csv"))
 new_colnames <- gsub("\\.", "_", colnames(crosswalk))
 colnames(crosswalk) <- new_colnames
 new_crosswalk <- crosswalk %>% select(FIPS, County_Title, MSA_Code, MSA_Title) %>% 

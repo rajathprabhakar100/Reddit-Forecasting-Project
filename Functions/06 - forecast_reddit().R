@@ -4,12 +4,12 @@ library(zoo)
 library(data.table)
 library(conflicted)
 reddit_and_cases <- read_csv("C:/Users/14049/Desktop/Reddit-Forecasting-Project/Results/CSV Files/reddit_and_cases_deaths.csv")
+conflict_prefer("select", "dplyr")
+conflict_prefer("filter", "dplyr")
+conflict_prefer("lag", "dplyr")
+conflict_prefer("between", "dplyr")
 
 forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
-  conflict_prefer("select", "dplyr")
-  conflict_prefer("filter", "dplyr")
-  conflict_prefer("lag", "dplyr")
-  conflict_prefer("between", "dplyr")
   city_training_data <- reddit_and_cases %>%
     filter(City == city) %>%
     mutate(illness7 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 7),
@@ -102,10 +102,10 @@ forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
 
 #forecast_reddit1 - for 8 weeks of training data 
 forecast_reddit1 <- function(date = NULL, city, weeks = "3", csv=F) {
-  conflict_prefer("select", "dplyr")
-  conflict_prefer("filter", "dplyr")
-  conflict_prefer("lag", "dplyr")
-  conflict_prefer("between", "dplyr")
+  #conflict_prefer("select", "dplyr")
+  #conflict_prefer("filter", "dplyr")
+  #conflict_prefer("lag", "dplyr")
+  #conflict_prefer("between", "dplyr")
   city_training_data <- reddit_and_cases %>%
     filter(City == city) %>%
     mutate(illness7 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 7),
@@ -197,10 +197,10 @@ forecast_reddit1 <- function(date = NULL, city, weeks = "3", csv=F) {
 
 #forecast_reddit2 - for cumulative training data
 forecast_reddit2 <- function(date = NULL, city, weeks = "3", csv=F) {
-  conflict_prefer("select", "dplyr")
-  conflict_prefer("filter", "dplyr")
-  conflict_prefer("lag", "dplyr")
-  conflict_prefer("between", "dplyr")
+  #conflict_prefer("select", "dplyr")
+  #conflict_prefer("filter", "dplyr")
+  #conflict_prefer("lag", "dplyr")
+  #conflict_prefer("between", "dplyr")
   city_training_data <- reddit_and_cases %>%
     filter(City == city) %>%
     mutate(illness7 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 7),
