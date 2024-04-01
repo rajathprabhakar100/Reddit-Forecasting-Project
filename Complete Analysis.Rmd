@@ -239,6 +239,7 @@ forecast_reddit() is a file consisting of three functions, with each correspondi
     If the csv option is set to TRUE, it saves the city_projection_data dataset as a CSV file in the "Results/Projections/<city_name>" directory with a filename that includes the date
     If the csv option is set to FALSE, it returns a list containing the city_projection_data dataset and the summaries of the four linear regression models
     
+#Atlanta 
 
 ```{r}
 atlanta_data_list_4_weeks <- list()
@@ -407,7 +408,7 @@ atlanta7_cumulative
 atlanta14_28days <- ggplot(final_data_atlanta_4, aes(x = Forecast_Date))+
   geom_line(y = final_data_atlanta_4$fcast14_mean, color = "red")+
   geom_ribbon(aes(ymin = fcast14_lwr, ymax = fcast14_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_4$case14)+
+  #geom_point(y = final_data_atlanta_4$case14)+
   labs(x = "Date", y = "Cases", title = "14-day Forecast Results (Weekly)", subtitle = "4 weeks")
 
 atlanta14_56days <- ggplot(final_data_atlanta_8, aes(x = Forecast_Date))+
@@ -455,5 +456,48 @@ atlanta21_cumulative <- ggplot(final_data_atlanta_cumulative, aes(x = Forecast_D
 atlanta21_28days
 atlanta21_56days
 atlanta21_cumulative
+```
+
+#Austin
+
+```{r}
+austin <- reddit_and_cases %>% 
+  filter(City == "Austin")
+```
+
+```{r}
+austin_data_list_4_weeks <- list()
+for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-28"), by = "7 days")) {
+  projection <- forecast_reddit(date = date, city = "Austin")$projection
+  projection1 <- projection %>% 
+    slice(c(1,8,15,22)) %>%
+    summarize(Forecast_Date = Date[1],
+              R2_0 = R2[1],
+              R2_7 = R2[2],
+              R2_14 = R2[3],
+              R2_21 = R2[4],
+              fcast0_lwr = Forecast_Lwr[1],
+              fcast0_mean = Forecast[1],
+              fcast0_upr = Forecast_Upr[1],
+              fcast7_lwr = Forecast_Lwr[2],
+              fcast7_mean = Forecast[2],
+              fcast7_upr = Forecast_Upr[2],
+              fcast14_lwr = Forecast_Lwr[3],
+              fcast14_mean = Forecast[3],
+              fcast14_upr = Forecast_Upr[3],
+              fcast21_lwr = Forecast_Lwr[4],
+              fcast21_mean = Forecast[4],
+              fcast21_upr = Forecast_Upr[4],
+              case0 = Daily_Cases[1],
+              target_date7 = Date[2],
+              case7 = Daily_Cases[2],
+              target_date14 = Date[3],
+              case14 = Daily_Cases[3],
+              target_date21 = Date[4],
+              case21 = Daily_Cases[4])
+  austin_data_list_4_weeks[[length(austin_data_list_4_weeks) + 1]] <- projection1
+}
+final_data_austin_4 <- do.call(rbind, austin_data_list_4_weeks)
+
 ```
 
