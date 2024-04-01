@@ -224,6 +224,8 @@ figure9
 ```
 For each city, the above plot shows the time series of mean_health vs Covid cases. 
 
+##Forecasts
+
 ```{r}
 source(here("Functions", "06 - forecast_reddit().R"))
 ```
@@ -239,7 +241,7 @@ forecast_reddit() is a file consisting of three functions, with each correspondi
     
 
 ```{r}
-data_list_4_weeks <- list()
+atlanta_data_list_4_weeks <- list()
 for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
   projection <- forecast_reddit(date = date, city = "Atlanta")$projection
   projection1 <- projection %>% 
@@ -268,15 +270,15 @@ for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
               case14 = Daily_Cases[3],
               target_date21 = Date[4],
               case21 = Daily_Cases[4])
-  data_list_4_weeks[[length(data_list_4_weeks) + 1]] <- projection1
+  atlanta_data_list_4_weeks[[length(atlanta_data_list_4_weeks) + 1]] <- projection1
 }
-final_data_atlanta_4 <- do.call(rbind, data_list_4_weeks)
+final_data_atlanta_4 <- do.call(rbind, atlanta_data_list_4_weeks)
 
 ```
 
 
 ```{r}
-data_list_8_weeks <- list()
+atlanta_data_list_8_weeks <- list()
 for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
   projection <- forecast_reddit1(date = date, city = "Atlanta")$projection
   projection1 <- projection %>% 
@@ -306,14 +308,14 @@ for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
               target_date21 = Date[4],
               case21 = Daily_Cases[4])
   
-  data_list_8_weeks[[length(data_list_8_weeks) + 1]] <- projection1
+  atlanta_data_list_8_weeks[[length(atlanta_data_list_8_weeks) + 1]] <- projection1
 }
-final_data_atlanta_8 <- do.call(rbind, data_list_8_weeks)
+final_data_atlanta_8 <- do.call(rbind, atlanta_data_list_8_weeks)
 
 ```
 
 ```{r}
-data_list_cumulative <- list()
+atlanta_data_list_cumulative <- list()
 for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
   projection <- forecast_reddit2(date = date, city = "Atlanta")$projection
   projection1 <- projection %>% 
@@ -342,9 +344,9 @@ for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
               case14 = Daily_Cases[3],
               target_date21 = Date[4],
               case21 = Daily_Cases[4])
-  data_list_cumulative[[length(data_list_cumulative) + 1]] <- projection1
+  atlanta_data_list_cumulative[[length(atlanta_data_list_cumulative) + 1]] <- projection1
 }
-final_data_atlanta_cumulative <- do.call(rbind, data_list_cumulative)
+final_data_atlanta_cumulative <- do.call(rbind, atlanta_data_list_cumulative)
 
 ```
 ```{r}
@@ -355,24 +357,103 @@ atlanta0_28days <- ggplot(final_data_atlanta_4, aes(x = Forecast_Date))+
   geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
   geom_point(y = final_data_atlanta_4$case0)+
   labs(x = "Date", y = "Cases", title = "Nowcast Results (Weekly)", subtitle = "4 weeks")
-atlanta0_28days
-```
-
-```{r}
 atlanta0_56days <- ggplot(final_data_atlanta_8, aes(x = Forecast_Date))+
   geom_line(y = final_data_atlanta_8$fcast0_mean, color = "red")+
   geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
   geom_point(y = final_data_atlanta_8$case0)+
   labs(x = "Date", y = "Cases", title = "Nowcast Forecast Results (Weekly)", subtitle = "8 weeks")
-atlanta0_56days
-```
-```{r}
 atlanta0_cumulative <- ggplot(final_data_atlanta_cumulative, aes(x = Forecast_Date))+
   geom_line(y = final_data_atlanta_cumulative$fcast0_mean, color = "red")+
   geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
   geom_point(y = final_data_atlanta_cumulative$case0)+
   labs(x = "Date", y = "Cases", title = "Nowcast Forecast Results (Weekly)", subtitle = "cumulative")
-atlanta0_cumulative
 ```
 
+```{r}
+atlanta0_28days
+atlanta0_56days
+atlanta0_cumulative
+```
+```{r}
+atlanta7_28days <- ggplot(final_data_atlanta_4, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_4$fcast7_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_4$case7)+
+  #scale_y_continuous(limits = c(0, max(final_data_atlanta_4$fcast7_upr)),
+  #                   breaks = seq(0, max(final_data_atlanta_4$fcast7_upr, final_data_atlanta_4$case7), by = 1000))+
+  labs(x = "Date", y = "Cases", title = "7-day Forecast Results (Weekly)", subtitle = "4 weeks")
+atlanta7_56days <- ggplot(final_data_atlanta_8, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_8$fcast7_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_8$case7)+
+  labs(x = "Date", y = "Cases", title = "7-day Forecast Results (Weekly)", subtitle = "8 weeks")
+
+atlanta7_cumulative <- ggplot(final_data_atlanta_cumulative, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_cumulative$fcast7_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_cumulative$case7)+
+  labs(x = "Date", y = "Cases", title = "7-day Forecast Results (Weekly)", subtitle = "cumulative")
+
+```
+
+7-day Forecasts
+
+```{r}
+atlanta7_28days
+atlanta7_56days
+atlanta7_cumulative
+```
+```{r}
+atlanta14_28days <- ggplot(final_data_atlanta_4, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_4$fcast14_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast14_lwr, ymax = fcast14_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_4$case14)+
+  labs(x = "Date", y = "Cases", title = "14-day Forecast Results (Weekly)", subtitle = "4 weeks")
+
+atlanta14_56days <- ggplot(final_data_atlanta_8, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_8$fcast14_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast14_lwr, ymax = fcast14_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_8$case14)+
+  labs(x = "Date", y = "Cases", title = "14-day Forecast Results (Weekly)", subtitle = "8 weeks")
+
+atlanta14_cumulative <- ggplot(final_data_atlanta_cumulative, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_cumulative$fcast14_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast14_lwr, ymax = fcast14_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_cumulative$case14)+
+  labs(x = "Date", y = "Cases", title = "14-day Forecast Results (Weekly)", subtitle = "cumulative")
+
+```
+
+```{r}
+atlanta14_28days
+atlanta14_56days
+atlanta14_cumulative
+```
+
+```{r}
+atlanta21_28days <- ggplot(final_data_atlanta_4, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_4$fcast21_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast21_lwr, ymax = fcast21_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_4$case21)+
+  labs(x = "Date", y = "Cases", title = "21-day Forecast Results (Weekly)", subtitle = "4 weeks")
+
+atlanta21_56days <- ggplot(final_data_atlanta_8, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_8$fcast21_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast21_lwr, ymax = fcast21_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_8$case21)+
+  labs(x = "Date", y = "Cases", title = "21-day Forecast Results (Weekly)", subtitle = "8 weeks")
+
+atlanta21_cumulative <- ggplot(final_data_atlanta_cumulative, aes(x = Forecast_Date))+
+  geom_line(y = final_data_atlanta_cumulative$fcast21_mean, color = "red")+
+  geom_ribbon(aes(ymin = fcast21_lwr, ymax = fcast21_upr), fill = "yellow", alpha = 0.3)+
+  geom_point(y = final_data_atlanta_cumulative$case21)+
+  labs(x = "Date", y = "Cases", title = "21-day Forecast Results (Weekly)", subtitle = "cumulative")
+
+```
+
+```{r}
+atlanta21_28days
+atlanta21_56days
+atlanta21_cumulative
+```
 
