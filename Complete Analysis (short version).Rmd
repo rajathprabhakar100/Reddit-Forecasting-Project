@@ -113,9 +113,6 @@ city_projection_data <- reddit_and_cases %>%
   select(-c(MSA_Code, MSA_Title, Cases, Deaths, Daily_Cases, Daily_Deaths, mean_health))
 ```
 
-```{r}
-city_projection_data
-```
 
 ```{r}
 DT::datatable(city_projection_data, options = list(pageLength = 10))
