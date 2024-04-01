@@ -118,6 +118,8 @@ city_projection_data <- reddit_and_cases %>%
 DT::datatable(city_projection_data, options = list(pageLength = 10))
 ```
 
+Starting from 5-19, one of either mean_illness, illness7, illness14, or illness21 is missing, rendering it impossible for the city0 or city7 models to result in anything other than non-NA values. 
+
 ```{r}
 city_projection_data <- city_projection_data %>% 
       mutate(R2 = case_when(
