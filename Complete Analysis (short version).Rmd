@@ -163,6 +163,7 @@ city_projection_data <- city_projection_data %>%
 ```
 
 These two models result in "0 non-NA cases"
+
 ```{r}
 city14_model_predict <- lm(Daily_Cases7 ~ illness14 + illness21, data = city_projection_data)
 city21_model_predict <- lm(Daily_Cases7 ~ illness21, data = city_projection_data)
@@ -177,4 +178,48 @@ reddit_and_cases %>%
            illness21 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 21)) %>% 
   filter(between(Date, as.Date(date), as.Date(date) + 21))
 ```
+
+```{r}
+source(here("Functions", "05 - covid_data_merging.R"))
+```
+
+Check for missing dates
+
+```{r}
+# Assuming your date column is named 'date'
+# Convert date column to proper date format
+combined_reddit_atlanta <- combined_reddit_df %>% 
+  filter(Cities == "Atlanta")
+combined_reddit_atlanta$Date <- as_date(combined_reddit_atlanta$Date)
+combined_reddit_atlanta
+# Generate a sequence of dates covering the range of your data
+start_date <- min(combined_reddit_atlanta$Date)
+end_date <- max(combined_reddit_atlanta$Date)
+all_dates <- seq(start_date, end_date, by = "day")
+
+# Find missing dates
+missing_dates <- setdiff(all_dates, combined_reddit_atlanta$Date)
+
+# Convert missing_dates to a data frame with a single column
+missing_dates_df <- data.frame(Date = as_date(missing_dates))
+
+# Bind with combined_reddit_atlanta and create a new column indicating presence of date
+step2 <- bind_rows(
+  mutate(combined_reddit_atlanta, Match = "Yes"),
+  mutate(missing_dates_df, Match = "No")
+)
+
+print(step2)
+step3 <- step2 %>% 
+  filter(Match == "No")
+step3b <- step2 %>% 
+  filter(Match == "Yes")
+step3b
+```
+```{r}
+DT::datatable(step3, options = list(pageLength = 10))
+```
+
+Above are the missing dates in the combined_reddit_df filtered for Atlanta. In these dates, both mean_health and mean_illness have missing values. 
+
 
