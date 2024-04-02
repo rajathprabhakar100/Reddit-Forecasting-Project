@@ -220,6 +220,21 @@ step3b
 DT::datatable(step3, options = list(pageLength = 10))
 ```
 
-Above are the missing dates in the combined_reddit_df filtered for Atlanta. In these dates, both mean_health and mean_illness have missing values. 
+Above are the missing dates in the combined_reddit_df filtered for Atlanta. There are 23. In these dates, both mean_health and mean_illness have missing values. Since this data comes from Atlanta_daily.csv, check this file for missing dates and/or missing mean_health and mean_illness values. 
 
+```{r}
+Atlanta_daily <- read_csv("Source Data/03 - Daily Data/Atlanta_daily.csv") %>% 
+  filter(Date > "2020-11-01" & Date < "2020-11-08" |
+           Date > "2021-01-22" & Date < "2021-04-15") %>% 
+  select(Date, mean_health, mean_illness)
+```
+```{r}
+DT::datatable(Atlanta_daily, options = list(pageLength = 10))
+```
+
+In Atlanta_daily.csv, there are missing dates. 
+
+```{r}
+source(here("Functions", "03 - process_reddit_files().R"))
+```
 
