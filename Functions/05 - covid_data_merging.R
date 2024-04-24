@@ -28,7 +28,7 @@ process_daily_file <- function(file_path, MSA_Code) {
 
 # Get the list of file names in the "Daily Data" folder
 file_names <- list.files("Source Data/03 - Daily Data", pattern = "*_daily.csv", full.names = TRUE)
-
+#file_names <- list.files("Source Data/Daily Data - New1", pattern = "*_daily.csv", full.names = TRUE)
 # Use map_dfr to apply the function to all files based on the MSA Codes
 data_list <- file_names %>%
   map2_dfr(MSA_Codes, ~ process_daily_file(.x, .y))
@@ -39,27 +39,32 @@ combined_reddit_df <- left_join(combined_reddit_df, table2)
 
 #For cases_and_deaths, filter by MSA_Code, then group_by Date and summarise mean cases and deaths
 cases_and_deaths1 <- cases_and_deaths %>% 
-  dplyr::filter(MSA_Code %in% MSA_Codes) %>%
+  filter(MSA_Code %in% MSA_Codes) %>%
   group_by(MSA_Code, MSA_Title, Date) %>% 
-  summarise(Cases = round(sum(Cases), 0),
-            Deaths = round(sum(Deaths), 0)) %>%
-  mutate(Daily_Cases = Cases - dplyr::lag(Cases, default = 0),
-         Daily_Deaths = Deaths - dplyr::lag(Deaths, default = 0),
-         Daily_Cases7 = round(rollmeanr(Daily_Cases, k = 7, fill = NA),2),
+  summarise(Cumulative_Cases = round(sum(Cases), 0),
+            Cumulative_Deaths = round(sum(Deaths), 0)) %>%
+  mutate(Daily_Cases = Cumulative_Cases - lag(Cumulative_Cases, default = 0),
+         Daily_Deaths = Cumulative_Deaths - lag(Cumulative_Deaths, default = 0)) %>% 
+  mutate(Daily_Cases = ifelse(Daily_Cases < 0, 0, Daily_Cases),
+         Daily_Deaths = ifelse(Daily_Deaths < 0, 0, Daily_Deaths)) %>% 
+  mutate(Daily_Cases7 = round(rollmeanr(Daily_Cases, k = 7, fill = NA),2),
          Daily_Deaths7 = round(rollmeanr(Daily_Deaths, k = 7, fill = NA), 2)) %>% 
-  select(Date, everything())
-#fwrite(cases_and_deaths1, "df of Seven-Day Average of Cases and Deaths by City.csv")
+  select(Date, everything()) 
+fwrite(cases_and_deaths1, "Results/CSV Files/df of Seven-Day Average of Cases and Deaths by City.csv")
 
-reddit_and_cases <- left_join(cases_and_deaths1, combined_reddit_df) %>%
+
+
+reddit_and_cases <- left_join(cases_and_deaths1, combined_reddit_df, by = c("MSA_Code", "Date")) %>%
   rename(City = Cities) #%>% 
   #na.omit()
 reddit_and_cases$Date <- as.Date.default(reddit_and_cases$Date, format = "%y-%m-%d")
-
-#fwrite(reddit_and_cases, paste("Results/CSV Files/reddit_and_cases_deaths.csv"))
+fwrite(reddit_and_cases, paste("Results/CSV Files/reddit_and_cases_deaths.csv"))
 
 #reddit_and_cases <- read_csv("Results/CSV Files/reddit_and_cases_deaths.csv")
 
-
-
-
-
+sf <- reddit_and_cases %>% 
+  filter(City == "San Francisco") %>% 
+  filter(Date >= "2021-06-01")
+sea <- reddit_and_cases %>% 
+  filter(City == "Seattle") %>% 
+  filter()
