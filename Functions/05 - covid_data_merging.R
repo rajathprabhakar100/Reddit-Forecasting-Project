@@ -62,9 +62,16 @@ fwrite(reddit_and_cases, paste("Results/CSV Files/reddit_and_cases_deaths.csv"))
 
 #reddit_and_cases <- read_csv("Results/CSV Files/reddit_and_cases_deaths.csv")
 
-sf <- reddit_and_cases %>% 
-  filter(City == "San Francisco") %>% 
-  filter(Date >= "2021-06-01")
-sea <- reddit_and_cases %>% 
-  filter(City == "Seattle") %>% 
-  filter()
+#sf <- reddit_and_cases %>% 
+##  filter(City == "San Francisco") %>% 
+#  filter(Date >= "2021-06-01")
+#sea <- reddit_and_cases %>% 
+#  filter(City == "Seattle") %>% 
+#  filter()
+#L <- combined_reddit_df %>% 
+#  filter(MSA_Code == "C1206")
+#Atlanta <- Atlanta %>%
+#  group_by(Date) %>%
+#  summarize(num_comments = n()) %>%
+#  mutate(date_diff = c(NA, diff(Date))) %>% 
+#  filter(date_diff != 1)
