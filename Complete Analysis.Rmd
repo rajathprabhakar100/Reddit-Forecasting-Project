@@ -8,35 +8,15 @@ output: html_document
 ```{r}
 library(here)
 ```
-
+Start with the merged Reddit files. Then apply the user-generated function process_reddit_files() to the Reddit files. This function outputs a daily 7 day rolling average of each variable. 
 
 ##Using the Raw Data
 #Skip chunks at line 15 and line 33 if you would not like to wait forever for the chunks to run
 
-```{r}
-source(here("Functions", "02 - combine_reddit().R"))
-```
-
-First, the csv file containing Reddit data from all studied cities is loaded into R. Then, this data is cleaned by converting the created_utc column to a date format, removing the created_utc column, and relocating the Date column.
-
-Next, a function called combine_reddit() is defined. It takes a folder path, the aformentioned allcities data frame, and a file name as arguments. Inside the function, for the individual city Reddit data:
-
-    constructs a file path for the specified file name
-    Reads the file into a data frame called liwc_df
-    Cleans the liwc_df data in an identical manner as the allcities data
-    Extracts the city name from the filename
-    Filters the allcities data for the corresponding city based on the subreddit column
-    Combines the filtered allcities data with the liwc_df data using bind_rows
-    Writes the combined data to a new CSV file with the city name and _clean.csv suffix
-
-For example:
-combine_reddit("Source Data/01 - Raw", allcities, filename = "liwc22_Atlanta.csv")
 
 ```{r}
 source(here("Functions", "03 - process_reddit_files().R"))
 ```
-
-This function takes the cleaned Reddit files (seen in the combine_reddit() function), calculates the daily mean values for each numeric column, applies a rolling mean (7 days), and exports the resulting data frame to a new CSV file called city_clean.csv. 
 
 ```{r}
 #process_reddit_files(folder_path = "Source Data/02 - Clean Data/", filename = "Atlanta_clean.csv")
@@ -62,9 +42,65 @@ process_reddit_files(folder_path = "Source Data/02 - Clean Data/", filename = "w
 For example:
 process_reddit_files(folder_path = "Source Data/02 - Clean Data/", filename = "Atlanta_clean.csv")
 
+For cities with multiple subreddits, namely New York City and Minneapolis, combine the data from those subreddits first, then manually apply the contents of the process_reddit_files() function to it.
+
+New York City
+
+```{r}
+nyc <- fread("Source Data/01 - Raw/merged_nyc.csv")
+nyc1 <- fread("Source Data/01 - Raw/merged_newyorkcity.csv")
+
+nyc2 <- bind_rows(nyc, nyc1)
+
+nyc2 <- nyc2 %>% 
+  mutate(Date = as_datetime(created_utc, tz = "America/Chicago") %>% 
+           as_date()) %>%
+  select(-created_utc) %>% 
+  select(author, Date, everything()) %>% 
+  mutate(author = replace(author, author %in% c("[deleted]", "AutoModerator"), NA)) %>% 
+  select(-c(author, subreddit, parent_id, score, id, Segment)) %>% 
+  group_by(Date) %>% 
+  summarize_all(mean, na.rm = T) %>% 
+  rename_with(~paste0("mean_", .), -Date) %>% 
+  mutate_at(vars(starts_with("mean_")),
+            list(~rollmean(., k = 7, fill = NA, align = "right"))) %>% 
+  arrange(Date) %>% 
+  filter(Date >= "2019-01-01")
+
+fwrite(nyc2, "Source Data/03 - Daily Data/nyc_daily.csv")
+```
+
+Minneapolis
+
+```{r}
+library(data.table)
+library(tidyverse)
+library(zoo)
+min1 <- fread("Source Data/01 - Raw/merged_minneapolis.csv")
+min2 <- fread("Source Data/01 - Raw/merged_twincities.csv")
+
+min3 <- bind_rows(min1, min2) %>% 
+  mutate(Date = as_datetime(created_utc, tz = "America/Chicago") %>% 
+           as_date()) %>%
+  select(-created_utc) %>% 
+  select(author, Date, everything()) %>% 
+  mutate(author = replace(author, author %in% c("[deleted]", "AutoModerator"), NA)) %>% 
+  select(-c(author, subreddit, parent_id, score, id, Segment)) %>% 
+  group_by(Date) %>% 
+  summarize_all(mean, na.rm = T) %>% 
+  rename_with(~paste0("mean_", .), -Date) %>% 
+  mutate_at(vars(starts_with("mean_")),
+            list(~rollmean(., k = 7, fill = NA, align = "right"))) %>% 
+  arrange(Date) %>% 
+  filter(Date >= "2019-01-01")
+  
+fwrite(min3, "Source Data/03 - Daily Data/minneapolis_daily.csv")
+```
+
 ```{r}
 source(here("Functions", "04 - ccf_city_case_files().R"))
 ```
+
 ```{r}
 source(here("Results", "R codes", "Code for combined_data.R"))
 ```
