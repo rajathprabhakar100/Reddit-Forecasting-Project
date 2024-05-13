@@ -4,31 +4,31 @@ library(zoo)
 
 process_reddit_files <- function(folder_path, filename) {
   file_path <- file.path(folder_path, filename)
-  data <- fread(file_path)
-  
-  data <- data %>%
-    mutate(author = replace(author, author %in% c("[deleted]", "AutoModerator"), NA),
-           body = replace(body, body == "[removed]", NA)) %>%
-    select(-c(1:4, 6:10)) %>% 
-    na.omit() %>% 
+  data <- fread(file_path) %>%
+    mutate(Date = as_datetime(created_utc, tz = "America/Chicago") %>% 
+             as_date()) %>%
+    select(-created_utc) %>% 
+    select(author, Date, everything()) %>% 
+    mutate(author = replace(author, author %in% c("[deleted]", "AutoModerator"), NA)) %>% 
+    select(-c(author, subreddit, parent_id, score, id, Segment)) %>% 
     group_by(Date) %>% 
     summarize_all(mean, na.rm = T) %>% 
-    rename_with(~paste0("mean_", .), -Date)
-  
-  means_significant <- data %>%
-    #select(Date, starts_with("mean_")) %>%
+    rename_with(~paste0("mean_", .), -Date) %>% 
     mutate_at(vars(starts_with("mean_")),
               list(~rollmean(., k = 7, fill = NA, align = "right"))) %>% 
-    arrange(Date)
+    arrange(Date) %>% 
+    filter(Date >= "2019-01-01")
+  
+
   
   # Extract city name from the filename
-  city_name <- gsub("_clean.csv$", "", basename(filename))
+  city_name <- gsub("^merged_(.*?).csv$", "\\1", basename(filename))
   
   # Export the data frame with the modified city name in the filename
-  #output_filename <- paste0("Source Data/03 - Daily Data/", city_name, "_daily.csv")
-  output_filename <- paste0("Source Data/Daily Data - New/", city_name, "_daily.csv")
+  output_filename <- paste0("Source Data/03 - Daily Data/", city_name, "_daily.csv")
+  #output_filename <- paste0("Source Data/Daily Data - New/", city_name, "_daily.csv")
   #output_filename <- paste0("Source Data/Daily Data - New1/", city_name, "_daily.csv")
-  fwrite(means_significant, output_filename)
+  fwrite(data, output_filename)
   
   message(paste(output_filename, "exported to local folder"))
   #return(means_significant)
