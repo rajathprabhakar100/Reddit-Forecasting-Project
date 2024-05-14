@@ -1,26 +1,45 @@
-atlanta <- ccf_city_case_files("Source Data/03 - Daily Data", "atlanta_daily.csv", code = "C1206", city = "Atlanta", state = "Georgia", plots = FALSE, lags = "both")
-austin <- ccf_city_case_files("Source Data/03 - Daily Data", "austin_daily.csv", code = "C1242", city = "Austin", state = "Texas", plots = FALSE, lags = "both")
-boston <- ccf_city_case_files("Source Data/03 - Daily Data", "boston_daily.csv", code = "C1446", city = "Boston", state = "Massachusetts", plots = FALSE, lags = "both")
-chicago <- ccf_city_case_files("Source Data/03 - Daily Data", "chicago_daily.csv", code = "C1698", city = "Chicago", state = "Illinois", plots = FALSE, lags = "both")
-houston <- ccf_city_case_files("Source Data/03 - Daily Data", "houston_daily.csv", code = "C2642", city = "Houston", state = "Texas", plots = FALSE, lags = "both")
-LA <- ccf_city_case_files("Source Data/03 - Daily Data", "losangeles_daily.csv", code = "C3108", city = "Los Angeles", state = "California", plots = FALSE, lags = "both")
+fwrite(combo, paste("Results/CSV Files/combined_data.csv"))
 
-nashville <- ccf_city_case_files("Source Data/03 - Daily Data", "nashville_daily.csv", code = "C3498", city = "Nashville", state = "Tennessee", plots = FALSE, lags = "both")
-nyc <- ccf_city_case_files("Source Data/03 - Daily Data", "nyc_daily.csv", code = "C3562", city = "New York", state = "New York", plots = FALSE, lags = "both")
-orlando <- ccf_city_case_files("Source Data/03 - Daily Data", "orlando_daily.csv", code = "C3674", city = "Orlando", state = "Florida", plots = FALSE, lags = "both")
-philadelphia <- ccf_city_case_files("Source Data/03 - Daily Data", "philadelphia_daily.csv", code = "C3798", city = "Philadelphia", state = "Pennsylvania", plots = FALSE, lags = "both")
-phoenix <- ccf_city_case_files("Source Data/03 - Daily Data", "phoenix_daily.csv", code = "C3806", city = "Phoenix", state = "Arizona", plots = FALSE, lags = "both")
-portland <- ccf_city_case_files("Source Data/03 - Daily Data", "portland_daily.csv", code = "C3890", city = "Portland", state = "Oregon", plots = FALSE, lags = "both")
-raleigh <- ccf_city_case_files("Source Data/03 - Daily Data", "raleigh_daily.csv", code = "C3958", city = "Raleigh", state = "North Carolina", plots = FALSE, lags = "both")
-san_diego <- ccf_city_case_files("Source Data/03 - Daily Data", "sandiego_daily.csv", code = "C4174", city = "San Diego", state = "California", plots = FALSE, lags = "both")
-san_francisco <- ccf_city_case_files("Source Data/03 - Daily Data", "sanfrancisco_daily.csv", code = "C4186", city = "San Francisco", state = "California", plots = FALSE, lags = "both")
-seattle <- ccf_city_case_files("Source Data/03 - Daily Data", "seattle_daily.csv", code = "C4266", city = "Seattle", state = "Washington", plots = FALSE, lags = "both")
-stl <- ccf_city_case_files("Source Data/03 - Daily Data", "stlouis_daily.csv", code = "C4118", city = "St. Louis", state = "Missouri", plots = FALSE, lags = "both")
-washington <- ccf_city_case_files("Source Data/03 - Daily Data", "washingtondc_daily.csv", code = "C4790", city = "Washington", state = "Maryland", plots = FALSE, lags = "both")
+files <- list.files("Source Data/Daily Data") %>% 
+  as.vector()
+MSA_Codes <- c("C1206", "C1242","C1258", "C1446","C1674", "C1698","C1814",
+               "C1910","C1974","C1982","C2642","C2814", "C3108","C3346",
+               "C3498","C3538", "C3562", "C3674", "C3798", "C3806", "C3890",
+               "C3958","C4162", "C4174", "C4186", "C4266", "C4118","C4530","C2982", "C4790")
+Cities <- c("Atlanta", "Austin","Baltimore", "Boston", "Charlotte", "Chicago", "Columbus","Dallas","Denver",
+            "Detroit","Houston","Kansas City","Los Angeles","Minneapolis","Nashville","New Orleans",
+            "New York City", "Orlando", "Philadelphia", "Phoenix", "Portland", "Raleigh","Salt Lake City",
+            "San Diego", "San Francisco", "Seattle", "St. Louis","Tampa Bay","Las Vegas", "Washington DC")
+States <- c("Georgia", "Texas", "Maryland", "Massachussetts", "North Carolina", "Illinois", "Ohio", "Texas",
+            "Colorado", "Michigan", "Texas", "Missouri", "California", "Minnesota", "Tennessee", "Louisiana",
+            "New York", "Florida", "Pennsylvania", "Arizona", "Oregon", "North Carolina", "Utah",
+            "California", "California", "Washington", "Missouri", "Florida", "Nevada", "Maryland")
+info <- bind_cols(Cities, MSA_Codes) %>% 
+  rename(city = `...1`,
+         msa_code = `...2`) %>% 
+  bind_cols(filename = files, 
+            state = States) %>%
+  select(city, state, msa_code, filename) %>% 
+  rename(City = city, 
+         State = state) %>% 
+  slice(-16)
+result_list <- list()
+for (i in 1:nrow(info)) {
+  row <- info[i, ]
+  City <- row$City
+  State <- row$State
+  msa_code <- row$msa_code
+  filename <- row$filename
+  
+  # Call your function for each row
+  acf_result <- ccf_city_case_files("Source Data/Daily Data", filename = as.character(filename),
+                                    code = msa_code, city = City, state = State, 
+                                    plots = FALSE, explanatory = NULL, lags = "both")
+  
+  # Store the result in the list
+  result_list[[i]] <- acf_result
+}
+result_table <- do.call(rbind, result_list)
 
-
-
-combo <- bind_rows(atlanta, austin, boston, chicago, houston, LA, nashville, nyc, orlando, philadelphia, phoenix, portland, raleigh, san_diego, san_francisco, seattle, stl, washington) %>% 
-  select(City, State, Variable, Max_ACF, Lag, Est_Population, Population)
-#fwrite(combo, paste("Results/CSV Files/combined_data.csv"))
+fwrite(result_table, paste("Results/CSV Files/combined_data.csv"))
 
