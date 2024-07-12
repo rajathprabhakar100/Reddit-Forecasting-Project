@@ -78,21 +78,41 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
   if (!is.null(code)) {
     city_msa_cases <- cases %>% 
       filter(MSA_Code == code) %>% 
-      group_by(week) %>% 
-      summarize(Cases = sum(Cases),
-                Est_Population = sum(estpop2020),
-                Population = sum(pop2020))
+      group_by(week, FIPS, Admin2) %>% 
+      summarize(Cumulative_Cases = Cases,
+                Est_Population = unique(estpop2020),
+                Population = unique(pop2020)) %>% 
+      ungroup() %>% 
+      group_by(FIPS, Admin2,week) %>% 
+      slice_tail(n = 1) %>% 
+      na.omit() %>% 
+      ungroup() %>% 
+      group_by(week) %>%
+      summarize(Cumulative_Cases = sum(Cumulative_Cases),
+                Est_Population = sum(Est_Population),
+                Population = sum(Population))
+    
     #set up for ccf
     city_msa_deaths <- deaths %>% 
       filter(MSA_Code == code) %>% 
-      group_by(week) %>% 
-      summarize(Deaths = sum(Deaths),
-                Est_Population = sum(estpop2020),
-                Population = sum(pop2020))
-
+      group_by(week, FIPS, Admin2) %>% 
+      summarize(Cumulative_Deaths = Cases,
+                Est_Population = unique(estpop2020),
+                Population = unique(pop2020)) %>% 
+      ungroup() %>% 
+      group_by(FIPS, Admin2,week) %>% 
+      slice_tail(n = 1) %>% 
+      na.omit() %>% 
+      ungroup() %>% 
+      group_by(week) %>%
+      summarize(Cumulative_Deaths = sum(Cumulative_Deaths),
+                Est_Population = sum(Est_Population),
+                Population = sum(Population))
+    
+    
     city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "week") %>% 
-      mutate(Weekly_Cases = Cases - lag(Cases, default = 0),
-             Weekly_Deaths = Deaths - lag(Deaths, default = 0))
+      mutate(Weekly_Cases = Cumulative_Cases - lag(Cumulative_Cases, default = 0),
+             Weekly_Deaths = Cumulative_Deaths - lag(Cumulative_Deaths, default = 0))
     city_combined <- left_join(city_combined, data, by = "week") %>% 
       na.omit() %>% 
       rename(Est_Population = Est_Population.x,

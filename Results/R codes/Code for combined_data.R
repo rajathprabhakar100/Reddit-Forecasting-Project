@@ -46,7 +46,3 @@ result_table[result_table$Variable == "mean_function.", "Variable"] <- "mean_fun
 fwrite(result_table, paste("Results/CSV Files/combined_data.csv"))
 
 combo <- fread("Results/CSV Files/combined_data.csv")
-
-ccf_city_case_files("Source Data/Weekly Data", filename = "atlanta_weekly.csv",
-                    code = "C1206", city = "Atlanta", state = "Georgia", 
-                    plots = T, explanatory = NULL, lags = "both")
