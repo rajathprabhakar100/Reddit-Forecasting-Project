@@ -11,6 +11,7 @@ conflict_prefer("filter", "dplyr")
 conflict_prefer("lag", "dplyr")
 conflict_prefer("between", "dplyr")
 
+
 forecast_reddit <- function(date = NULL, city, weeks = "3", csv=F) {
   city_training_data <- reddit_and_cases %>%
     filter(City == city) %>%
@@ -342,20 +343,22 @@ forecast_reddit_poisson_4 <- function(date = NULL, city, weeks = "3", csv=F) {
 
 
 
-forecast_reddit_poisson_8 <- function(date = NULL, city, weeks = "3", csv=F) {
+
+forecast_reddit_poisson_8_ar <- function(date = NULL, city, weeks = "3", csv=F) {
   city_training_data <- reddit_and_cases %>%
-    mutate(Daily_Cases7 = round(Daily_Cases7,0)) %>%
     filter(City == city) %>%
-    mutate(illness7 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 7),
-           illness14 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 14),
-           illness21 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 21)) %>%
-    filter(between(Date, as.Date(date) - 55, as.Date(date))) %>% 
-    select(Date, City, MSA_Code, Daily_Cases, mean_illness, illness7, illness14, illness21)
+    mutate(illness7 = lag(mean_illness, n = 1),
+           illness14 = lag(mean_illness, n = 2),
+           illness21 = lag(mean_illness, n = 3),
+           cases_lag7 = lag(Weekly_Cases, n = 1)) %>%
+    filter(between(week, as.Date(date) - 56, as.Date(date) - 1)) %>% 
+    select(week, City, MSA_Code, Weekly_Cases, mean_illness, illness7, illness14, illness21,
+           cases_lag7)
   #print(city_training_data)
   suppressWarnings({
-    city0_model <- glm(Daily_Cases ~ mean_illness + illness7 + illness14 + illness21,
+    city0_model <- glm(Weekly_Cases ~ mean_illness + illness7 + illness14 + illness21 + cases_lag7,
                        data = city_training_data, family = poisson)
-    city7_model <- glm(Daily_Cases ~ illness7 + illness14 + illness21,
+    city7_model <- glm(Weekly_Cases ~ illness7 + illness14 + illness21 + cases_lag7,
                        data = city_training_data, family = poisson)
     })
     
@@ -367,19 +370,67 @@ forecast_reddit_poisson_8 <- function(date = NULL, city, weeks = "3", csv=F) {
   #print(city21_model_summary)
   city_projection_data <- reddit_and_cases %>% 
     filter(City == city) %>% 
-    mutate(illness7 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 7),
-           illness14 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 14),
-           illness21 = lag(rollmean(mean_illness, k = 7, align = "right", fill = NA, na.pad = T), n = 21),
-           cases_lag7 = lag(Daily_Cases, n = 7)) %>% 
-    filter(between(Date, as.Date(date) + 1 , as.Date(date) + 8))
-  city_projection_data1 <- city_projection_data %>% 
-    slice(1) %>% 
-    add_pi(df = ., fit = city0_model, names = c("Forecast_Lwr", "Forecast_Upr"))
-  city_projection_data2 <- city_projection_data %>% 
-    slice(-1) %>% 
-    add_pi(df = ., fit = city7_model, names = c("Forecast_Lwr", "Forecast_Upr"))
+    mutate(illness7 = lag(mean_illness, n = 1),
+           illness14 = lag(mean_illness, n = 2),
+           illness21 = lag(mean_illness, n = 3),
+           cases_lag7 = lag(Weekly_Cases, n = 1)) %>% 
+    filter(between(week, as.Date(date), as.Date(date) + 7))
+  suppressWarnings({
+    city_projection_data1 <- city_projection_data %>% 
+      slice(1) %>% 
+      add_pi(df = ., fit = city0_model, names = c("Forecast_Lwr", "Forecast_Upr"))
+    city_projection_data2 <- city_projection_data %>% 
+      slice(-1) %>% 
+      add_pi(df = ., fit = city7_model, names = c("Forecast_Lwr", "Forecast_Upr"))
+  })
   city_projection_data <- bind_rows(city_projection_data1, city_projection_data2) %>% 
-    rename(Forecast = pred)  
+    rename(Forecast = pred) %>% 
+    select(week, MSA_Code, MSA_Title, City, Forecast_Lwr, Forecast, Forecast_Upr, everything())
+  return(city_projection_data)
+  
+  
+}
+
+forecast_reddit_poisson_8 <- function(date = NULL, city, weeks = "3", csv=F) {
+  city_training_data <- reddit_and_cases %>%
+    filter(City == city) %>%
+    mutate(illness7 = lag(mean_illness, n = 1),
+           illness14 = lag(mean_illness, n = 2),
+           illness21 = lag(mean_illness, n = 3)) %>%
+    filter(between(week, as.Date(date) - 56, as.Date(date) - 1)) %>% 
+    select(week, City, MSA_Code, Weekly_Cases, mean_illness, illness7, illness14, illness21)
+  #print(city_training_data)
+  suppressWarnings({
+    city0_model <- glm(Weekly_Cases ~ mean_illness + illness7 + illness14 + illness21,
+                       data = city_training_data, family = poisson)
+    city7_model <- glm(Weekly_Cases ~ illness7 + illness14 + illness21,
+                       data = city_training_data, family = poisson)
+  })
+  
+  city0_model_summary <- summary(city0_model)
+  city7_model_summary <- summary(city7_model)
+  
+  #print(city7_model_summary)
+  #print(city14_model_summary)
+  #print(city21_model_summary)
+  city_projection_data <- reddit_and_cases %>% 
+    filter(City == city) %>% 
+    mutate(illness7 = lag(mean_illness, n = 1),
+           illness14 = lag(mean_illness, n = 2),
+           illness21 = lag(mean_illness, n = 3)) %>% 
+    filter(between(week, as.Date(date), as.Date(date) + 7))
+  suppressWarnings({
+    city_projection_data1 <- city_projection_data %>% 
+      slice(1) %>% 
+      add_pi(df = ., fit = city0_model, names = c("Forecast_Lwr", "Forecast_Upr"))
+    
+    city_projection_data2 <- city_projection_data %>% 
+      slice(-1) %>% 
+      add_pi(df = ., fit = city7_model, names = c("Forecast_Lwr", "Forecast_Upr"))
+  })
+  city_projection_data <- bind_rows(city_projection_data1, city_projection_data2) %>% 
+    rename(Forecast = pred) %>% 
+    select(week, MSA_Code, MSA_Title, City, Forecast_Lwr, Forecast, Forecast_Upr, everything())
   return(city_projection_data)
   
   

@@ -100,6 +100,23 @@ fwrite(min3, "Source Data/03 - Daily Data/minneapolis_daily.csv")
 ```{r}
 source(here("Functions", "04 - ccf_city_case_files().R"))
 ```
+```{r}
+file_names <- list.files("Source Data/Daily Data", pattern = "*_daily.csv", full.names = TRUE)
+for (file in file_names) {
+  file_name <- file.path(file)
+  data <- fread(file_name) %>%
+    #mutate(Date = as.Date(Date)) %>% 
+    filter(Date >= "2019-01-20") %>% 
+    mutate(week = floor_date(Date, "week")) %>% 
+    group_by(week) %>% 
+    summarize(across(-Date, mean, na.rm = T))
+  city_name <- sub(".*Source Data/Daily Data/(.*)_daily\\.csv", "\\1", file)
+  city_name <- trimws(city_name)
+  output_filename <- paste0("Source Data/Weekly Data/", city_name, "_weekly.csv")
+  fwrite(data, output_filename)
+  
+}
+```
 
 ```{r}
 source(here("Results", "R codes", "Code for combined_data.R"))
@@ -124,84 +141,17 @@ mean_illness has the highest average rank for positive lags, while mean_analytic
 source(here("Results/R codes", "Code for table_of_average_acf_lag.R"))
 ```
 ```{r}
-table1
+table1 %>% arrange(Average_ACF_positive)
 ```
 
 mean_illness has the highest correlation with Covid cases, and has an average lag of about 14 days. 
 
 ```{r}
-figure1 <- ggplot(table1, aes(x = reorder(Variable,
-                               abs(Average_ACF_positive)),
-                   y = Average_ACF_positive, 
-                   fill = Type))+
-  geom_bar(stat = "identity")+
-  coord_flip()+
-  labs(x = "Average ACF",
-       y = "Variable",
-       title = "Variables by Average Correlations (Positive Lags)")
-figure1
-```
-
-```{r}
-figure2 <- ggplot(table1, aes(x = reorder(Variable, -abs(Average_ACF_negative)),
-                   y = Average_ACF_negative, fill = Type))+
-  geom_bar(stat = "identity")+
-  coord_flip()+
-  labs(x = "Average ACF",
-       y = "Variable",
-       title = "Variables by Average Correlations (Negative Lags)")
-figure2
-
-```
-
-```{r}
-figure3 <- ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_pos)),
-                     y = avg_rank_pos, fill = Type))+
-  geom_bar(stat = "identity")+
-  coord_flip()+
-  labs(x = "Average Rank",
-       y = "Variable",
-       title = "Variables by Average Rank (Positive Lags)")
-figure3
-```
-
-```{r}
-figure4 <- ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_neg)),
-                     y = avg_rank_neg, fill = Type))+
-  geom_bar(stat = "identity")+
-  coord_flip()+
-  labs(x = "Average Rank",
-       y = "Variable",
-       title = "Variables by Average Rank (Negative Lags)")
-figure4
-```
-
-```{r}
-figure5 <- ggplot(table1, aes(x = reorder(Variable, Average_Lag_positive), 
-                   y = Average_Lag_positive, fill = Type))+
-  geom_bar(stat = "identity")+
-  coord_flip()+
-  labs(x = "Average Lag",
-       y = "Variable",
-       title = "Variables by Average Lag (Positive Lags)")
-figure5
-```
-
-```{r}
-figure6 <- ggplot(table1, aes(x = reorder(Variable, Average_Lag_negative), 
-                   y = Average_Lag_negative, fill = Type))+
-  geom_bar(stat = "identity")+
-  coord_flip()+
-  labs(x = "Average Lag",
-       y = "Variable",
-       title = "Variables by Average Lag (Negative Lags)")
-figure6
-```
-
-```{r}
-top12variables <- c("mean_illness", "mean_health", "mean_family", "mean_Tone",
-                    "mean_fatigue", "mean_Analytic", "mean_allnone", "mean_emo_pos",
-                    "mean_mental", "mean_emo_sad", "mean_tone_pos", "mean_emotion")
+top12variables <- table1 %>%
+  arrange(-Average_ACF_positive) %>%
+  slice(1:12) %>%
+  pull(Variable) %>%
+  as.character()
 
 top_12 <- combined %>% 
   filter(Lag > 0 & Variable %in% top12variables)
@@ -274,2148 +224,6 @@ forecast_reddit() is a file consisting of three functions, with each correspondi
     If the csv option is set to TRUE, it saves the city_projection_data dataset as a CSV file in the "Results/Projections/<city_name>" directory with a filename that includes the date
     If the csv option is set to FALSE, it returns a list containing the city_projection_data dataset and the summaries of the four linear regression models
     
-#Atlanta 
-
-```{r}
-atlanta_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Atlanta")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  atlanta_data_list_4_weeks[[length(atlanta_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_atlanta_4 <- do.call(rbind, atlanta_data_list_4_weeks)
-
-```
-
-
-```{r}
-atlanta_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Atlanta")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  atlanta_data_list_8_weeks[[length(atlanta_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_atlanta_8 <- do.call(rbind, atlanta_data_list_8_weeks)
-
-```
-
-```{r}
-atlanta_data_list_cumulative <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit2(date = date, city = "Atlanta")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  atlanta_data_list_cumulative[[length(atlanta_data_list_cumulative) + 1]] <- projection1
-}
-final_data_atlanta_cumulative <- do.call(rbind, atlanta_data_list_cumulative)
-
-```
-```{r}
-library(tidyverse)
-library(gridExtra)
-atlanta0_28days <- ggplot(final_data_atlanta_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_4$case0)+
-  scale_y_continuous(limits = c(0, 20000))+
-  labs(x = "Date", y = "Cases", title = "Atlanta Nowcast Results (Weekly)", subtitle = "4 weeks")
-atlanta0_56days <- ggplot(final_data_atlanta_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_8$case0)+
-  scale_y_continuous(limits = c(0, 20000))+
-  labs(x = "Date", y = "Cases", title = "Atlanta Nowcast Results (Weekly)", subtitle = "8 weeks")
-atlanta0_cumulative <- ggplot(final_data_atlanta_cumulative, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_cumulative$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_cumulative$case0)+
-  labs(x = "Date", y = "Cases", title = "Atlanta Nowcast Forecast Results (Weekly)", subtitle = "cumulative")
-```
-
-```{r}
-atlanta0_28days
-atlanta0_56days
-atlanta0_cumulative
-```
-```{r}
-atlanta7_28days <- ggplot(final_data_atlanta_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_4$case7)+
-  scale_y_continuous(limits = c(0, 20000))+
-  labs(x = "Date", y = "Cases", title = "Atlanta 7-day Forecast Results (Weekly)", subtitle = "4 weeks")
-atlanta7_56days <- ggplot(final_data_atlanta_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_8$case7)+
-  scale_y_continuous(limits = c(0, 20000))+
-  labs(x = "Date", y = "Cases", title = "Atlanta 7-day Forecast Results (Weekly)", subtitle = "8 weeks")
-
-atlanta7_cumulative <- ggplot(final_data_atlanta_cumulative, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_cumulative$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_cumulative$case7)+
-  labs(x = "Date", y = "Cases", title = "Atlanta 7-day Forecast Results (Weekly)", subtitle = "cumulative")
-
-```
-
-7-day Forecasts
-
-```{r}
-atlanta7_28days
-atlanta7_56days
-atlanta7_cumulative
-```
-```{r}
-atlanta14_28days <- ggplot(final_data_atlanta_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_4$fcast14_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast14_lwr, ymax = fcast14_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_4$case14)+
-  labs(x = "Date", y = "Cases", title = "Atlanta 14-day Forecast Results (Weekly)", subtitle = "4 weeks")
-
-atlanta14_56days <- ggplot(final_data_atlanta_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_8$fcast14_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast14_lwr, ymax = fcast14_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_8$case14)+
-  labs(x = "Date", y = "Cases", title = "Atlanta 14-day Forecast Results (Weekly)", subtitle = "8 weeks")
-
-atlanta14_cumulative <- ggplot(final_data_atlanta_cumulative, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_cumulative$fcast14_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast14_lwr, ymax = fcast14_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_cumulative$case14)+
-  labs(x = "Date", y = "Cases", title = "Atlanta 14-day Forecast Results (Weekly)", subtitle = "cumulative")
-
-```
-
-```{r}
-atlanta14_28days
-atlanta14_56days
-atlanta14_cumulative
-```
-
-```{r}
-atlanta21_28days <- ggplot(final_data_atlanta_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_4$fcast21_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast21_lwr, ymax = fcast21_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_4$case21)+
-  labs(x = "Date", y = "Cases", title = "Atlanta 21-day Forecast Results (Weekly)", subtitle = "4 weeks")
-
-atlanta21_56days <- ggplot(final_data_atlanta_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_8$fcast21_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast21_lwr, ymax = fcast21_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_8$case21)+
-  labs(x = "Date", y = "Cases", title = "Atlanta 21-day Forecast Results (Weekly)", subtitle = "8 weeks")
-
-atlanta21_cumulative <- ggplot(final_data_atlanta_cumulative, aes(x = Forecast_Date))+
-  geom_line(y = final_data_atlanta_cumulative$fcast21_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast21_lwr, ymax = fcast21_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_atlanta_cumulative$case21)+
-  labs(x = "Date", y = "Cases", title = "Atlanta 21-day Forecast Results (Weekly)", subtitle = "cumulative")
-
-```
-
-```{r}
-atlanta21_28days
-atlanta21_56days
-atlanta21_cumulative
-```
-
-#Austin
-
-```{r}
-austin <- reddit_and_cases %>% 
-  filter(City == "Austin")
-```
-
-```{r}
-austin_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-28"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Austin")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  austin_data_list_4_weeks[[length(austin_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_austin_4 <- do.call(rbind, austin_data_list_4_weeks)
-
-```
-
-#Boston
-
-```{r}
-boston_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Boston")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  boston_data_list_4_weeks[[length(boston_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_boston_4 <- do.call(rbind, boston_data_list_4_weeks)
-```
-
-```{r}
-boston_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Boston")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  boston_data_list_8_weeks[[length(boston_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_boston_8 <- do.call(rbind, boston_data_list_8_weeks)
-
-```
-
-```{r}
-boston0_28days <- ggplot(final_data_boston_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_boston_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_boston_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Boston Nowcast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,20000, by = 1250), limits = c(0, 20000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-boston0_56days <- ggplot(final_data_boston_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_boston_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_boston_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Boston Nowcast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,20000, by = 1250), limits = c(0, 20000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-```{r}
-boston0_28days
-boston0_56days
-```
-
-```{r}
-boston7_28days <- ggplot(final_data_boston_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_boston_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_boston_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Boston 7-day Forecast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,20000, by = 1250), limits = c(0, 20000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-boston7_56days <- ggplot(final_data_boston_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_boston_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_boston_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Boston 7-day Forecast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,20000, by = 1250), limits = c(0, 20000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-```{r}
-boston7_28days
-boston7_56days
-```
-
-```{r}
-library(cowplot)
-boston_nowcast_grid <- plot_grid(boston0_28days, boston0_56days)
-boston_7day_grid <- plot_grid(boston7_28days, boston7_56days)
-boston_nowcast_grid
-boston_7day_grid
-```
-
-```{r}
-ggsave("Results/Projections/boston_nowcasts.png", boston_nowcast_grid, width = 10, height = 6)
-ggsave("Results/Projections/boston_7day.png", boston_7day_grid, width = 10, height = 6)
-```
-
-#Chicago
-
-```{r}
-chicago_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Chicago")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  chicago_data_list_4_weeks[[length(chicago_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_chicago_4 <- do.call(rbind, chicago_data_list_4_weeks)
-```
-
-```{r}
-chicago_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Chicago")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  chicago_data_list_8_weeks[[length(chicago_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_chicago_8 <- do.call(rbind, chicago_data_list_8_weeks)
-```
-
-```{r}
-chicago0_28days <- ggplot(final_data_chicago_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_chicago_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_chicago_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Chicago Nowcast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,30000, by = 2500), limits = c(0, 30000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-chicago0_56days <- ggplot(final_data_chicago_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_chicago_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_chicago_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Chicago Nowcast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,30000, by = 2500), limits = c(0, 30000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-chicago7_28days <- ggplot(final_data_chicago_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_chicago_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_chicago_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Chicago 7-day Forecast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,30000, by = 2500), limits = c(0, 30000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-chicago7_56days <- ggplot(final_data_chicago_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_chicago_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_chicago_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Chicago 7-day Forecast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,30000, by = 2500), limits = c(0, 30000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-```{r}
-chicago0_28days
-chicago0_56days
-```
-```{r}
-chicago7_28days
-chicago7_56days
-```
-```{r}
-chicago_nowcast_grid <- plot_grid(chicago0_28days, chicago0_56days)
-chicago_7day_grid <- plot_grid(chicago7_28days, chicago7_56days)
-ggsave("Results/Projections/chicago_nowcasts.png", chicago_nowcast_grid, width = 10, height = 6)
-ggsave("Results/Projections/chicago_7day.png", chicago_7day_grid, width = 10, height = 6)
-```
-
-#Houston
-```{r}
-houston_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Houston")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  houston_data_list_4_weeks[[length(houston_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_houston_4 <- do.call(rbind, houston_data_list_4_weeks)
-
-```
-```{r}
-houston_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Houston")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  houston_data_list_8_weeks[[length(houston_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_houston_8 <- do.call(rbind, houston_data_list_8_weeks)
-
-```
-
-```{r}
-houston0_28days <- ggplot(final_data_houston_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_houston_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_houston_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Houston Nowcast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,20000, by = 1250), limits = c(0, 20000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-houston0_56days <- ggplot(final_data_houston_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_houston_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_houston_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Houston Nowcast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,20000, by = 1250), limits = c(0, 20000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-houston7_28days <- ggplot(final_data_houston_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_houston_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_houston_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Houston 7-day Forecast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,20000, by = 1250), limits = c(0, 20000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-houston7_56days <- ggplot(final_data_houston_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_houston_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_houston_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Houston 7-day Forecast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,20000, by = 1250), limits = c(0, 20000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-```{r}
-houston0_28days
-houston0_56days
-```
-
-```{r}
-houston7_28days
-houston7_56days
-```
-```{r}
-houston_nowcast_grid <- plot_grid(houston0_28days, houston0_56days)
-houston_7day_grid <- plot_grid(houston7_28days, houston7_56days)
-ggsave("Results/Projections/houston_nowcasts.png", houston_nowcast_grid, width = 10, height = 6)
-ggsave("Results/Projections/houston_7day.png", houston_7day_grid, width = 10, height = 6)
-```
-
-#Los Angeles
-
-```{r}
-LA_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Los Angeles")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  LA_data_list_4_weeks[[length(LA_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_LA_4 <- do.call(rbind, LA_data_list_4_weeks)
-
-```
-
-```{r}
-LA_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Los Angeles")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  LA_data_list_8_weeks[[length(LA_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_LA_8 <- do.call(rbind, LA_data_list_8_weeks)
-
-```
-
-```{r}
-LA0_28days <- ggplot(final_data_LA_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_LA_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.4)+
-  geom_point(y = final_data_LA_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Los Angeles Nowcast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,50000, by = 5000), limits = c(0, 50000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-LA0_56days <- ggplot(final_data_LA_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_LA_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.4)+
-  geom_point(y = final_data_LA_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Los Angeles Nowcast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,50000, by = 5000), limits = c(0, 50000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-LA7_28days <- ggplot(final_data_LA_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_LA_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_LA_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Los Angeles 7-day Forecast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,50000, by = 5000), limits = c(0, 50000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-LA7_56days <- ggplot(final_data_LA_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_LA_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_LA_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Los Angeles 7-day Forecast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,50000, by = 5000), limits = c(0, 50000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-```{r}
-LA0_28days
-LA0_56days
-```
-```{r}
-LA_nowcast_grid <- plot_grid(LA0_28days, LA0_56days)
-LA_7day_grid <- plot_grid(LA7_28days, LA7_56days)
-LA_nowcast_grid
-LA_7day_grid
-ggsave("Results/Projections/LA_nowcasts.png", LA_nowcast_grid, width = 10, height = 6)
-ggsave("Results/Projections/LA_7day.png", LA_7day_grid, width = 10, height = 6)
-```
-
-```{r}
-LA7_28days
-LA7_56days
-```
-
-#Nashville
-
-```{r}
-nashville_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Nashville")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  nashville_data_list_4_weeks[[length(nashville_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_nashville_4 <- do.call(rbind, nashville_data_list_4_weeks)
-
-```
-
-```{r}
-nashville_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Nashville")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  nashville_data_list_8_weeks[[length(nashville_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_nashville_8 <- do.call(rbind, nashville_data_list_8_weeks)
-
-```
-
-```{r}
-nashville0_28days <- ggplot(final_data_nashville_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_nashville_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_nashville_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Nashville Nowcast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,5000, by = 500), limits = c(0, 5000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-nashville0_56days <- ggplot(final_data_nashville_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_nashville_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_nashville_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Nashville Nowcast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,5000, by = 500), limits = c(0, 5000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-nashville7_28days <- ggplot(final_data_nashville_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_nashville_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_nashville_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Nashville 7-day Forecast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,5000, by = 500), limits = c(0, 5000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-nashville7_56days <- ggplot(final_data_nashville_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_nashville_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_nashville_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Nashville 7-day Forecast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,5000, by = 500), limits = c(0, 5000))+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-```{r}
-nashville0_28days
-nashville0_56days
-```
-
-```{r}
-nashville7_28days
-nashville7_56days
-```
-```{r}
-nashville_nowcast_grid <- plot_grid(nashville0_28days, nashville0_56days)
-nashville_7day_grid <- plot_grid(nashville7_28days, nashville7_56days)
-ggsave("Results/Projections/nashville_7day.png", nashville_7day_grid, width = 10, height = 6)
-ggsave("Results/Projections/nashville_nowcasts.png", nashville_nowcast_grid, width = 10, height = 6)
-```
-
-#NYC
-
-```{r}
-NYC_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "New York City")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  NYC_data_list_4_weeks[[length(NYC_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_NYC_4 <- do.call(rbind, NYC_data_list_4_weeks)
-
-```
-
-```{r}
-NYC_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "New York City")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  NYC_data_list_8_weeks[[length(NYC_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_NYC_8 <- do.call(rbind, NYC_data_list_8_weeks)
-
-```
-
-```{r}
-NYC0_28days <- ggplot(final_data_NYC_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_NYC_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_NYC_4$case0)+
-  labs(x = "Date", y = "Cases", title = "New York City Nowcast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,100000, by = 10000), limits = c(0, 100000),
-                     labels = scales::comma)+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-NYC0_56days <- ggplot(final_data_NYC_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_NYC_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_NYC_8$case0)+
-  labs(x = "Date", y = "Cases", title = "New York City Nowcast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,100000, by = 10000), limits = c(0, 100000),
-                     labels = scales::comma)+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-NYC7_28days <- ggplot(final_data_NYC_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_NYC_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_NYC_4$case7)+
-  labs(x = "Date", y = "Cases", title = "New York City 7-day Forecast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,100000, by = 10000), limits = c(0, 100000),
-                     labels = scales::comma)+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-NYC7_56days <- ggplot(final_data_NYC_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_NYC_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_NYC_8$case7)+
-  labs(x = "Date", y = "Cases", title = "New York City 7-day Forecast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,100000, by = 10000), limits = c(0, 100000),
-                     labels = scales::comma)+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-```{r}
-NYC0_28days
-NYC0_56days
-```
-
-```{r}
-NYC7_28days
-NYC7_56days
-```
-
-```{r}
-nyc_nowcast_grid <- plot_grid(NYC0_28days, NYC0_56days)
-nyc_7day_grid <- plot_grid(NYC7_28days, NYC7_56days)
-ggsave("Results/Projections/nyc_nowcasts.png", nyc_nowcast_grid, width = 10, height = 6)
-ggsave("Results/Projections/nyc_7day.png", nyc_7day_grid, width = 10, height = 6)
-```
-
-#Orlando
-
-```{r}
-orlando_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Orlando")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  orlando_data_list_4_weeks[[length(orlando_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_orlando_4 <- do.call(rbind, orlando_data_list_4_weeks)
-
-```
-
-```{r}
-orlando_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Orlando")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  orlando_data_list_8_weeks[[length(orlando_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_orlando_8 <- do.call(rbind, orlando_data_list_8_weeks)
-
-```
-
-```{r}
-orlando0_28days <- ggplot(final_data_orlando_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_orlando_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_orlando_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Orlando Nowcast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,15000, by = 1200), limits = c(0, 15000),
-                     labels = scales::comma)+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-orlando0_56days <- ggplot(final_data_orlando_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_orlando_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_orlando_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Orlando Nowcast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,15000, by = 1200), limits = c(0, 15000),
-                     labels = scales::comma)+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  
-orlando7_28days <- ggplot(final_data_orlando_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_orlando_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_orlando_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Orlando 7-day Forecast Results (Weekly)", subtitle = "4 weeks")+
-  scale_y_continuous(breaks = seq(0,15000, by = 1200), limits = c(0, 15000),
-                     labels = scales::comma)+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-orlando7_56days <- ggplot(final_data_orlando_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_orlando_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_orlando_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Orlando 7-day Forecast Results (Weekly)", subtitle = "8 weeks")+
-  scale_y_continuous(breaks = seq(0,15000, by = 1200), limits = c(0, 15000),
-                     labels = scales::comma)+
-  scale_x_date(date_breaks = "2 months")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-```{r}
-orlando0_28days
-orlando0_56days
-```
-
-```{r}
-orlando7_28days
-orlando7_56days
-```
-
-```{r}
-orlando_nowcast_grid <- plot_grid(orlando0_28days, orlando0_56days)
-orlando_7day_grid <- plot_grid(orlando7_28days, orlando7_56days)
-ggsave("Results/Projections/orlando_nowcasts.png", orlando_nowcast_grid, width = 10, height = 6)
-ggsave("Results/Projections/orlando_7day.png", orlando_7day_grid, width = 10, height = 6)
-```
-
-#Philadelphia
-```{r}
-philadelphia_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Philadelphia")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  philadelphia_data_list_4_weeks[[length(philadelphia_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_philadelphia_4 <- do.call(rbind, philadelphia_data_list_4_weeks)
-```
-
-```{r}
-philadelphia_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Philadelphia")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  philadelphia_data_list_8_weeks[[length(philadelphia_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_philadelphia_8 <- do.call(rbind, philadelphia_data_list_8_weeks)
-
-```
-
-```{r}
-philadelphia0_28days <- ggplot(final_data_philadelphia_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_philadelphia_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_philadelphia_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Philadelphia Nowcast Results (Weekly)", subtitle = "4 weeks")
-philadelphia0_56days <- ggplot(final_data_philadelphia_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_philadelphia_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_philadelphia_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Philadelphia Nowcast Results (Weekly)", subtitle = "8 weeks")
-philadelphia7_28days <- ggplot(final_data_philadelphia_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_philadelphia_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_philadelphia_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Philadelphia 7-day Forecast Results (Weekly)", subtitle = "4 weeks")
-philadelphia7_56days <- ggplot(final_data_philadelphia_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_philadelphia_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_philadelphia_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Philadelphia 7-day Forecast Results (Weekly)", subtitle = "8 weeks")
-```
-
-```{r}
-philadelphia0_28days
-philadelphia0_56days
-```
-
-```{r}
-philadelphia7_28days
-philadelphia7_56days
-```
-
-#Phoenix
-
-```{r}
-phx_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Phoenix")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  phx_data_list_4_weeks[[length(phx_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_phx_4 <- do.call(rbind, phx_data_list_4_weeks)
-
-```
-
-
-```{r}
-phx_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Phoenix")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  phx_data_list_8_weeks[[length(phx_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_phx_8 <- do.call(rbind, phx_data_list_8_weeks)
-
-```
-
-```{r}
-phx0_28days <- ggplot(final_data_phx_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_phx_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_phx_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Phoenix Nowcast Results (Weekly)", subtitle = "4 weeks")
-phx0_56days <- ggplot(final_data_phx_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_phx_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_phx_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Phoenix Nowcast Results (Weekly)", subtitle = "8 weeks")
-phx7_28days <- ggplot(final_data_phx_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_phx_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_phx_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Phoenix 7-day Forecast Results (Weekly)", subtitle = "4 weeks")
-phx7_56days <- ggplot(final_data_phx_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_phx_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_phx_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Phoenix 7-day Forecast Results (Weekly)", subtitle = "8 weeks")
-```
-
-```{r}
-phx0_28days
-phx0_56days
-```
-
-```{r}
-phx7_28days
-phx7_56days
-```
-#Portland
-
-```{r}
-por_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Portland")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  por_data_list_4_weeks[[length(por_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_por_4 <- do.call(rbind, por_data_list_4_weeks)
-
-```
-
-
-```{r}
-por_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Portland")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  por_data_list_8_weeks[[length(por_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_por_8 <- do.call(rbind, por_data_list_8_weeks)
-
-```
-
-```{r}
-phx0_28days <- ggplot(final_data_phx_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_phx_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_phx_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Phoenix Nowcast Results (Weekly)", subtitle = "4 weeks")
-phx0_56days <- ggplot(final_data_phx_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_phx_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_phx_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Phoenix Nowcast Results (Weekly)", subtitle = "8 weeks")
-phx7_28days <- ggplot(final_data_phx_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_philadelphia_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_phx_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Phoenix 7-day Forecast Results (Weekly)", subtitle = "4 weeks")
-phx7_56days <- ggplot(final_data_phx_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_phx_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_phx_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Phoenix 7-day Forecast Results (Weekly)", subtitle = "8 weeks")
-```
-
-```{r}
-phx0_28days
-phx0_56days
-```
-
-```{r}
-phx7_28days
-phx7_56days
-```
-
-#Raleigh
-
-```{r}
-ral_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Raleigh")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  ral_data_list_4_weeks[[length(ral_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_ral_4 <- do.call(rbind, ral_data_list_4_weeks)
-
-```
-
-
-```{r}
-ral_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Raleigh")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  ral_data_list_8_weeks[[length(ral_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_ral_8 <- do.call(rbind, ral_data_list_8_weeks)
-
-```
-
-```{r}
-ral0_28days <- ggplot(final_data_ral_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_ral_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_ral_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Raleigh Nowcast Results (Weekly)", subtitle = "4 weeks")
-ral0_56days <- ggplot(final_data_ral_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_ral_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_ral_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Raleigh Nowcast Results (Weekly)", subtitle = "8 weeks")
-ral7_28days <- ggplot(final_data_ral_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_ral_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_ral_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Raleigh 7-day Forecast Results (Weekly)", subtitle = "4 weeks")
-ral7_56days <- ggplot(final_data_ral_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_ral_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_ral_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Raleigh 7-day Forecast Results (Weekly)", subtitle = "8 weeks")
-```
-
-```{r}
-ral0_28days
-ral0_56days
-```
-
-```{r}
-ral7_28days
-ral7_56days
-```
-#San Diego
-
-```{r}
-sd_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "San Diego")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  sd_data_list_4_weeks[[length(sd_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_sd_4 <- do.call(rbind, sd_data_list_4_weeks)
-
-```
-
-
-```{r}
-sd_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "San Diego")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  sd_data_list_8_weeks[[length(sd_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_sd_8 <- do.call(rbind, sd_data_list_8_weeks)
-
-```
-
-```{r}
-sd0_28days <- ggplot(final_data_sd_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sd_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sd_4$case0)+
-  labs(x = "Date", y = "Cases", title = "San Diego Nowcast Results (Weekly)", subtitle = "4 weeks")
-sd0_56days <- ggplot(final_data_sd_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sd_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sd_8$case0)+
-  labs(x = "Date", y = "Cases", title = "San Diego Nowcast Results (Weekly)", subtitle = "8 weeks")
-sd7_28days <- ggplot(final_data_sd_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sd_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sd_4$case7)+
-  labs(x = "Date", y = "Cases", title = "San Diego 7-day Forecast Results (Weekly)", subtitle = "4 weeks")
-sd7_56days <- ggplot(final_data_sd_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sd_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sd_8$case7)+
-  labs(x = "Date", y = "Cases", title = "San Diego 7-day Forecast Results (Weekly)", subtitle = "8 weeks")
-```
-
-```{r}
-sd0_28days
-sd0_56days
-```
-
-```{r}
-sd7_28days
-sd7_56days
-```
-#San Francisco
-
-```{r}
-sf_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "San Francisco")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  sf_data_list_4_weeks[[length(sf_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_sf_4 <- do.call(rbind, sf_data_list_4_weeks)
-
-```
-
-
-```{r}
-sf_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "San Francisco")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  sf_data_list_8_weeks[[length(sf_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_sf_8 <- do.call(rbind, sf_data_list_8_weeks)
-
-```
-
-```{r}
-sf0_28days <- ggplot(final_data_sf_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sf_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sf_4$case0)+
-  labs(x = "Date", y = "Cases", title = "San Francisco Nowcast Results (Weekly)", subtitle = "4 weeks")
-sf0_56days <- ggplot(final_data_sf_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sf_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sf_8$case0)+
-  labs(x = "Date", y = "Cases", title = "San Francisco Nowcast Results (Weekly)", subtitle = "8 weeks")
-sf7_28days <- ggplot(final_data_sf_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sf_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sf_4$case7)+
-  labs(x = "Date", y = "Cases", title = "San Francisco 7-day Forecast Results (Weekly)", subtitle = "4 weeks")
-sf7_56days <- ggplot(final_data_sf_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sf_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sf_8$case7)+
-  labs(x = "Date", y = "Cases", title = "San Francisco 7-day Forecast Results (Weekly)", subtitle = "8 weeks")
-```
-
-```{r}
-sf0_28days
-sf0_56days
-```
-
-```{r}
-sf7_28days
-sf7_56days
-```
-#Seattle
-
-```{r}
-sea_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Seattle")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  sea_data_list_4_weeks[[length(sea_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_sea_4 <- do.call(rbind, sea_data_list_4_weeks)
-
-```
-
-
-```{r}
-sea_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Seattle")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  sea_data_list_8_weeks[[length(sea_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_sea_8 <- do.call(rbind, sea_data_list_8_weeks)
-
-```
-
-```{r}
-sea0_28days <- ggplot(final_data_sea_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sea_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sea_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Seattle Nowcast Results (Weekly)", subtitle = "4 weeks")
-sea0_56days <- ggplot(final_data_sea_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sea_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sea_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Seattle Nowcast Results (Weekly)", subtitle = "8 weeks")
-sea7_28days <- ggplot(final_data_sea_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sea_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sea_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Seattle 7-day Forecast Results (Weekly)", subtitle = "4 weeks")
-sea7_56days <- ggplot(final_data_sea_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_sea_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_sea_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Seattle 7-day Forecast Results (Weekly)", subtitle = "8 weeks")
-```
-
-```{r}
-sea0_28days
-sea0_56days
-```
-
-```{r}
-sea7_28days
-sea7_56days
-```
-#St. Louis
-
-```{r}
-stl_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "St. Louis")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  stl_data_list_4_weeks[[length(stl_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_stl_4 <- do.call(rbind, stl_data_list_4_weeks)
-
-```
-
-
-```{r}
-stl_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "St. Louis")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  stl_data_list_8_weeks[[length(stl_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_stl_8 <- do.call(rbind, stl_data_list_8_weeks)
-
-```
-
-```{r}
-stl0_28days <- ggplot(final_data_stl_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_stl_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_stl_4$case0)+
-  labs(x = "Date", y = "Cases", title = "St. Louis Nowcast Results (Weekly)", subtitle = "4 weeks")
-stl0_56days <- ggplot(final_data_stl_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_stl_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_stl_8$case0)+
-  labs(x = "Date", y = "Cases", title = "St. Louis Nowcast Results (Weekly)", subtitle = "8 weeks")
-stl7_28days <- ggplot(final_data_stl_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_stl_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_stl_4$case7)+
-  labs(x = "Date", y = "Cases", title = "St. Louis 7-day Forecast Results (Weekly)", subtitle = "4 weeks")
-stl7_56days <- ggplot(final_data_stl_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_stl_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_stl_8$case7)+
-  labs(x = "Date", y = "Cases", title = "St. Louis 7-day Forecast Results (Weekly)", subtitle = "8 weeks")
-```
-
-```{r}
-stl0_28days
-stl0_56days
-```
-
-```{r}
-stl7_28days
-stl7_56days
-```
-
-#Washington DC
-
-```{r}
-wsh_data_list_4_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit(date = date, city = "Washington DC")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  wsh_data_list_4_weeks[[length(wsh_data_list_4_weeks) + 1]] <- projection1
-}
-final_data_wsh_4 <- do.call(rbind, wsh_data_list_4_weeks)
-
-```
-
-
-```{r}
-wsh_data_list_8_weeks <- list()
-for (date in seq(as.Date("2020-05-01"), as.Date("2022-02-18"), by = "7 days")) {
-  projection <- forecast_reddit1(date = date, city = "Washington DC")$projection
-  projection1 <- projection %>% 
-    slice(c(1,8,15,22)) %>%
-    summarize(Forecast_Date = Date[1],
-              R2_0 = R2[1],
-              R2_7 = R2[2],
-              R2_14 = R2[3],
-              R2_21 = R2[4],
-              fcast0_lwr = Forecast_Lwr[1],
-              fcast0_mean = Forecast[1],
-              fcast0_upr = Forecast_Upr[1],
-              fcast7_lwr = Forecast_Lwr[2],
-              fcast7_mean = Forecast[2],
-              fcast7_upr = Forecast_Upr[2],
-              fcast14_lwr = Forecast_Lwr[3],
-              fcast14_mean = Forecast[3],
-              fcast14_upr = Forecast_Upr[3],
-              fcast21_lwr = Forecast_Lwr[4],
-              fcast21_mean = Forecast[4],
-              fcast21_upr = Forecast_Upr[4],
-              case0 = Daily_Cases[1],
-              target_date7 = Date[2],
-              case7 = Daily_Cases[2],
-              target_date14 = Date[3],
-              case14 = Daily_Cases[3],
-              target_date21 = Date[4],
-              case21 = Daily_Cases[4])
-  
-  wsh_data_list_8_weeks[[length(wsh_data_list_8_weeks) + 1]] <- projection1
-}
-final_data_wsh_8 <- do.call(rbind, wsh_data_list_8_weeks)
-
-```
-
-```{r}
-wsh0_28days <- ggplot(final_data_wsh_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_wsh_4$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_wsh_4$case0)+
-  labs(x = "Date", y = "Cases", title = "Washington DC Nowcast Results (Weekly)", subtitle = "4 weeks")
-wsh0_56days <- ggplot(final_data_wsh_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_wsh_8$fcast0_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast0_lwr, ymax = fcast0_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_wsh_8$case0)+
-  labs(x = "Date", y = "Cases", title = "Washington DC Nowcast Results (Weekly)", subtitle = "8 weeks")
-wsh7_28days <- ggplot(final_data_wsh_4, aes(x = Forecast_Date))+
-  geom_line(y = final_data_wsh_4$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_wsh_4$case7)+
-  labs(x = "Date", y = "Cases", title = "Washington DC 7-day Forecast Results (Weekly)", subtitle = "4 weeks")
-wsh7_56days <- ggplot(final_data_wsh_8, aes(x = Forecast_Date))+
-  geom_line(y = final_data_wsh_8$fcast7_mean, color = "red")+
-  geom_ribbon(aes(ymin = fcast7_lwr, ymax = fcast7_upr), fill = "yellow", alpha = 0.3)+
-  geom_point(y = final_data_wsh_8$case7)+
-  labs(x = "Date", y = "Cases", title = "Washington DC 7-day Forecast Results (Weekly)", subtitle = "8 weeks")
-```
-
-```{r}
-wsh0_28days
-wsh0_56days
-```
-
-```{r}
-wsh7_28days
-wsh7_56days
-```
 
 ```{r}
 library(cowplot)
@@ -2440,118 +248,492 @@ source(here("Functions/07 - graph_reddit_forecasts().R"))
 ```
 
 ```{r}
-atl <- graph_reddit_forecasts("Atlanta", "2020-05-01", "2022-02-18")
+Cities1 <- c("Atlanta", "Austin","Baltimore", "Boston", "Charlotte", "Chicago", "Columbus","Dallas","Denver","Detroit","Houston","Kansas City","Los Angeles","Minneapolis","Nashville",
+            "Orlando", "New York City", "Philadelphia", "Phoenix", "Portland", "Raleigh","Salt Lake City","San Diego", "San Francisco", "Seattle", "St. Louis","Tampa Bay", "Las Vegas", "Washington DC")
+Cities2 <- c("Orlando", "Tampa Bay")
 ```
 
 ```{r}
-atl$forecast7_grid
-ggsave("Results/Projections/atlanta_poisson_7day.png", atl$forecast7_grid, width = 10, height = 8)
+metropolitan_forecasts1 <- list()
+for (metro in Cities1) {
+  metro_result <- graph_reddit_forecasts(city = metro, start.date = "2020-05-03", end.date = "2022-02-27")
+  metropolitan_forecasts1[[metro]] <- metro_result
+}
 ```
 
 ```{r}
-atx <- graph_reddit_forecasts("Austin", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/atx_poisson_nowcasts.png", atx$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/atx_poisson_7day.png", atx$forecast7_grid, width = 10, height = 8)
+save(metropolitan_forecasts1, file = "Results/R codes/metropolitan_forecasts1.RData")
 ```
 
 ```{r}
-bos <- graph_reddit_forecasts("Boston", "2020-05-01", "2022-02-18")
+load("Results/R codes/metropolitan_forecasts1.RData")
 ```
 
 ```{r}
-bos$nowcast_grid
-bos$forecast7_grid
-ggsave("Results/Projections/bos_poisson_nowcasts.png", bos$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/bos_poisson_7day.png", bos$forecast7_grid, width = 10, height = 8)
-```
-```{r}
-chi <- graph_reddit_forecasts("Chicago", "2020-05-01", "2022-02-18")
+library(cowplot)
 ```
 
 ```{r}
-ggsave("Results/Projections/chi_poisson_nowcasts.png", chi$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/chi_poisson_7day.png", chi$forecast7_grid, width = 10, height = 8)
+# List of cities
+Cities1 <- c("Atlanta", "Austin", "Baltimore", "Boston", "Charlotte", "Chicago", "Columbus", "Dallas", "Denver", "Detroit", "Houston", "Kansas City", "Los Angeles", "Minneapolis", "Nashville",
+             "Orlando", "New York City", "Philadelphia", "Phoenix", "Portland", "Raleigh", "Salt Lake City", "San Diego", "San Francisco", "Seattle", "St. Louis", "Tampa Bay", "Las Vegas", "Washington DC")
+
+# Function to format city names for variable access
+format_city_name <- function(city) {
+  if (grepl(" ", city) || grepl("-", city)) {
+    return(paste0("`", city, "`"))  # Wrap multi-word city names in backticks
+  } else {
+    return(city)  # Single-word city names remain unchanged
+  }
+}
+
+# Function to format city names for filenames
+format_filename <- function(city) {
+  city_formatted <- gsub(" ", "", city)  # Remove spaces
+  city_formatted <- gsub("-", "", city_formatted)  # Remove dashes
+  return(city_formatted)
+}
+
+# Generate and save plots for each city
+for (city in Cities1) {
+  city_var <- format_city_name(city)
+  city_file <- format_filename(city)
+  
+  # Create AR plot grid
+  ar_plot <- plot_grid(eval(parse(text = paste0("metropolitan_forecasts1$", city_var, "$nowcast_8_ar"))), 
+                       eval(parse(text = paste0("metropolitan_forecasts1$", city_var, "$forecast_8_ar"))))
+  
+  # Create regular plot grid
+  plot <- plot_grid(eval(parse(text = paste0("metropolitan_forecasts1$", city_var, "$nowcast_8"))), 
+                    eval(parse(text = paste0("metropolitan_forecasts1$", city_var, "$forecast8"))))
+  
+  # Save AR plot grid
+  ggsave(paste0("Results/Projections/ar_", city_file, "_grid.png"), ar_plot, width = 10, height = 6)
+  
+  # Save regular plot grid
+  ggsave(paste0("Results/Projections/", city_file, "_grid.png"), plot, width = 10, height = 6)
+}
+
 ```
 
 ```{r}
-hou <- graph_reddit_forecasts("Houston", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/hou_poisson_nowcasts.png", hou$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/hou_poisson_7day.png", hou$forecast7_grid, width = 10, height = 8)
+files <- list.files("Source Data/Weekly Data") %>% 
+  as.vector()
+MSA_Codes <- c("C1206", "C1242","C1258", "C1446","C1674", "C1698","C1814",
+               "C1910","C1974","C1982","C2642","C2814", "C3108","C3346",
+               "C3498","C3538", "C3562", "C3674", "C3798", "C3806", "C3890",
+               "C3958","C4162", "C4174", "C4186", "C4266", "C4118","C4530","C2982", "C4790")
+Cities <- c("Atlanta", "Austin","Baltimore", "Boston", "Charlotte", "Chicago", "Columbus","Dallas","Denver",
+            "Detroit","Houston","Kansas City","Los Angeles","Minneapolis","Nashville","New Orleans",
+            "New York City", "Orlando", "Philadelphia", "Phoenix", "Portland", "Raleigh","Salt Lake City",
+            "San Diego", "San Francisco", "Seattle", "St. Louis","Tampa Bay","Las Vegas", "Washington DC")
+States <- c("Georgia", "Texas", "Maryland", "Massachussetts", "North Carolina", "Illinois", "Ohio", "Texas",
+            "Colorado", "Michigan", "Texas", "Missouri", "California", "Minnesota", "Tennessee", "Louisiana",
+            "New York", "Florida", "Pennsylvania", "Arizona", "Oregon", "North Carolina", "Utah",
+            "California", "California", "Washington", "Missouri", "Florida", "Nevada", "Maryland")
+info <- bind_cols(Cities, MSA_Codes) %>% 
+  rename(city = `...1`,
+         msa_code = `...2`) %>% 
+  bind_cols(filename = files, 
+            state = States) %>%
+  select(city, state, msa_code, filename) %>% 
+  rename(City = city, 
+         State = state) %>% 
+  slice(-16)
+
+```
+```{r}
+info <- info %>% 
+  mutate(CCF_Path = paste0("Results/Graphs/CCF Plots/", City))
 ```
 
 ```{r}
-LA <- graph_reddit_forecasts("Los Angeles", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/LA_poisson_nowcasts.png", LA$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/LA_poisson_7day.png", LA$forecast7_grid, width = 10, height = 8)
+result_list <- list()
+for (i in 27:nrow(info)) {
+  msa_code <- info$msa_code[i]
+  City <- info$City[i]
+  State <- info$State[i]
+  file <- info$filename[i]
+  plot_ccf("Source Data/Weekly Data", filename = file, code = msa_code, city = City, state = State)
+
+}
+```
+
+
+```{r}
+result_list$Atlanta
 ```
 
 ```{r}
-nsh <- graph_reddit_forecasts("Nashville", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/nsh_poisson_nowcasts.png", nsh$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/nsh_poisson_7day.png", nsh$forecast7_grid, width = 10, height = 8)
+rank_avg <- read_csv("Results/CSV Files/Average_City_Rank.csv")
+table1 <- read_csv("Results/CSV Files/table_of_average_acf_lag.csv")
+combined <- read_csv("Results/CSV Files/combined_data.csv")
+reddit_and_cases <- read_csv("Results/CSV Files/reddit_and_cases_deaths.csv")
+```
+```{r}
+modified_rc <- reddit_and_cases %>%
+  select(-c(MSA_Code, MSA_Title, Cumulative_Cases, Cumulative_Deaths, Weekly_Deaths, mean_function)) %>% 
+  na.omit() %>% 
+  group_by(week) %>% 
+  summarize(Weekly_Cases = sum(Weekly_Cases),
+            across(starts_with("mean_"), mean, .names = "{col}"))
+  
+full_model <- glm(Weekly_Cases~ . - week, family = "poisson", data = modified_rc)
+```
+```{r}
+library(ciTools)
+library(cowplot)
+modified_rc1 <- modified_rc %>% 
+  add_pi(df = ., fit = full_model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+  select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+
+```
+```{r}
+ggplot(modified_rc1, aes(x = week))+
+  geom_line(aes(y = pred), color = "red")+
+  geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+  geom_point(aes(y = modified_rc1$Weekly_Cases))+
+  scale_y_continuous(labels = scales::comma)+
+  scale_x_date(date_breaks = "2 months")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  labs(title = "Full Model", x = "Date", y = "Cases")
 ```
 
 ```{r}
-nyc <- graph_reddit_forecasts("New York City", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/nyc_poisson_nowcasts.png", nyc$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/nyc_poisson_7day.png", nyc$forecast7_grid, width = 10, height = 8)
+modified_rc2 <- reddit_and_cases %>% 
+  select(week, City, everything()) %>% 
+  select(-c(MSA_Code, MSA_Title, mean_function)) %>% 
+  na.omit()
 ```
 
 ```{r}
-orl <- graph_reddit_forecasts("Orlando", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/orl_poisson_nowcasts.png", orl$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/orl_poisson_7day.png", orl$forecast7_grid, width = 10, height = 8)
+city_selection <- modified_rc2 %>%
+  select(-Cumulative_Cases, -Cumulative_Deaths, -Weekly_Deaths)
+full_city_model <- glm(Weekly_Cases ~ .- week, family = "poisson", data = city_selection)
+
+modified_city_selection <- city_selection %>% 
+  add_pi(df = ., fit = full_city_model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+  select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+#facet plot by city
+
+plot <- ggplot(modified_city_selection, aes(x = week))+
+  geom_line(aes(y = pred), color = "red")+
+  geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+  geom_point(aes(y = modified_city_selection$Weekly_Cases))+
+  facet_wrap(~City, scales= "free_y")+
+  scale_y_continuous(labels = scales::comma)+
+  scale_x_date(date_breaks = "2 months")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  labs(title = "Full Model for All Cities" , x = "Date", y = "Cases")
+save_plot("full_model.png", plot, base_width = 30, base_height = 20)
+```
+
+
+identify most important reddit columns
+
+lag all reddit indicators 1 week, then rerun
+
+```{r}
+library(zoo)
+modified_rc3 <- reddit_and_cases %>% 
+  select(week, City, everything()) %>% 
+  select(-c(MSA_Code, MSA_Title, mean_function)) %>%
+  mutate(across(7:ncol(.), ~lag(., n = 1), .names = "lag_{col}")) %>% 
+  rename(mean_function = mean_function.,
+         lag_mean_function = lag_mean_function.) %>% 
+  na.omit()
 ```
 
 ```{r}
-phi <- graph_reddit_forecasts("Philadelphia", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/phi_poisson_nowcasts.png", phi$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/phi_poisson_7day.png", phi$forecast7_grid, width = 10, height = 8)
+city_selection1 <- modified_rc3 %>%
+  select(-Cumulative_Cases, -Cumulative_Deaths, -Weekly_Deaths) %>% 
+  filter(City == "San Francisco") %>% 
+  select(-City)
+full_city_model1 <- glm(Weekly_Cases ~ .- week, family = "poisson", data = city_selection1)
+summary(full_city_model1)
+modified_city_selection1 <- city_selection1 %>% 
+  add_pi(df = ., fit = full_city_model1, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+  select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+#facet plot by city
+
+plot <- ggplot(modified_city_selection1, aes(x = week))+
+  geom_line(aes(y = pred), color = "red")+
+  geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+  geom_point(aes(y = modified_city_selection1$Weekly_Cases))+
+  facet_wrap(~City, scales= "free_y")+
+  scale_y_continuous(labels = scales::comma)+
+  scale_x_date(date_breaks = "2 months")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  labs(title = "Full Model for All Cities Using All Lagged Indicators" , x = "Date", y = "Cases")
+save_plot("full_model1.png", plot, base_width = 30, base_height = 20)
 ```
 
 ```{r}
-phx <- graph_reddit_forecasts("Phoenix", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/phx_poisson_nowcasts.png", phx$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/phx_poisson_7day.png", phx$forecast7_grid, width = 10, height = 8)
+city_model <- glm(Weekly_Cases~ City + mean_illness + mean_health + mean_Linguistic + mean_function + mean_tentat + lag_mean_illness + lag_mean_health + lag_mean_Linguistic + lag_mean_function + lag_mean_tentat, data = modified_rc3, family = "poisson")
 ```
 
 ```{r}
-por <- graph_reddit_forecasts("Portland", "2020-05-01", "2022-02-18")
+
+modified_city_selection2 <- modified_rc3 %>% 
+  add_pi(df = ., fit = city_model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+  select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+#facet plot by city
+
+plot <- ggplot(modified_city_selection2, aes(x = week))+
+  geom_line(aes(y = pred), color = "red")+
+  geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+  geom_point(aes(y = Weekly_Cases))+
+  facet_wrap(~City, scales= "free_y")+
+  scale_y_continuous(labels = scales::comma)+
+  scale_x_date(date_breaks = "2 months")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  labs(title = "Full Model for All Cities Using All Lagged Indicators" , x = "Date", y = "Cases")
+save_plot("city_model.png", plot, base_width = 30, base_height = 20)
 ```
 
 ```{r}
-ral <- graph_reddit_forecasts("Raleigh", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/ral_poisson_nowcasts.png", ral$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/ral_poisson_7day.png", ral$forecast7_grid, width = 10, height = 8)
+reddit_and_cases <- reddit_and_cases %>% filter(!is.na(City))
+cities <- as.vector(unique(reddit_and_cases$City))
 ```
 
 ```{r}
-sd <- graph_reddit_forecasts("San Diego", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/sd_poisson_nowcasts.png", sd$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/sd_poisson_7day.png", sd$forecast7_grid, width = 10, height = 8)
+for (city in cities) {
+  selection <- reddit_and_cases %>% 
+    filter(City == city) %>% 
+    select(week, City, everything()) %>% 
+    select(-c(MSA_Code, MSA_Title, mean_function, City)) %>%
+    mutate(across(7:ncol(.), ~lag(., n = 1), .names = "lag_{col}")) %>% 
+    rename(mean_function = mean_function.,
+           lag_mean_function = lag_mean_function.) %>% 
+    na.omit()
+  model <- glm(Weekly_Cases ~ ., family = "poisson", data = selection)
+  modified_selection <- selection %>% 
+    add_pi(df = ., fit = model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+    select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+  plot <- ggplot(modified_city_selection2, aes(x = week))+
+    geom_line(aes(y = pred), color = "red")+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    geom_point(aes(y = Weekly_Cases))+
+    facet_wrap(~City, scales= "free_y")+
+    scale_y_continuous(labels = scales::comma)+
+    scale_x_date(date_breaks = "2 months")+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    labs(title = paste("Full Model for", city, "Using All Lagged Indicators"), x = "Date", y = "Cases")
+  file_name <- paste0("Results/Projections/2024_06_30/", city, "_forecast")
+  ggsave(filename = file_name, plot = plot)
+}
 ```
 
 ```{r}
-sf <- graph_reddit_forecasts("San Francisco", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/sf_poisson_nowcasts.png", sf$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/sf_poisson_7day.png", sf$forecast7_grid, width = 10, height = 8)
+city = "Atlanta"
+selection <- reddit_and_cases %>% 
+  #select(week, City, everything()) #%>%
+  filter(City == city) %>% 
+  mutate(across(6:ncol(.), ~lag(., n = 1), .names = "lag_{col}")) %>%
+  select(-c(City, MSA_Code, MSA_Title, mean_function, lag_mean_function)) %>%
+  filter(complete.cases(.)) %>% 
+  rename(mean_function = mean_function.,
+         lag_mean_function = lag_mean_function.)
+selection1 <- selection %>%
+  select(-c(Cumulative_Cases, Cumulative_Deaths, Weekly_Deaths, lag_City)) %>% 
+  filter(complete.cases(.))
+full_city_model1 <- glm(Weekly_Cases ~ .-week, family = "poisson", data = selection1)
+summary(full_city_model1)
 ```
 
 ```{r}
-sea <- graph_reddit_forecasts("Seattle", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/sea_poisson_nowcasts.png", sea$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/sea_poisson_7day.png", sea$forecast7_grid, width = 10, height = 8)
+city = "Atlanta"
+selection <- reddit_and_cases %>% 
+  #select(week, City, everything()) #%>%
+  filter(City == city) %>% 
+  mutate(across(6:ncol(.), ~lag(., n = 1), .names = "lag_{col}")) %>%
+  select(-c(City, MSA_Code, MSA_Title, mean_function, lag_mean_function)) %>%
+  filter(complete.cases(.)) %>% 
+  rename(mean_function = mean_function.,
+         lag_mean_function = lag_mean_function.)
+selection1 <- selection %>%
+  select(-c(Cumulative_Cases, Cumulative_Deaths, Weekly_Deaths, lag_City)) %>% 
+  filter(complete.cases(.))
+full_city_model1 <- glm(Weekly_Cases ~ mean_Analytic + lag_mean_differ + mean_Clout + lag_mean_illness + mean_Authentic + mean_Race_Related + lag_mean_quantity, family = "poisson", data = selection1)
 ```
 
 ```{r}
-stl <- graph_reddit_forecasts("St. Louis", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/stl_poisson_nowcasts.png", stl$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/stl_poisson_7day.png", stl$forecast7_grid, width = 10, height = 8)
+modified_selection <- selection %>% 
+  add_pi(df = ., fit = full_city_model1, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+  select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+plot <- ggplot(modified_selection, aes(x = week))+
+  geom_line(aes(y = pred), color = "red")+
+  geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+  geom_line(aes(y = Weekly_Cases), color = "blue")+
+  scale_y_continuous(labels = scales::comma)+
+  scale_x_date(date_breaks = "2 months")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+plot
+```
+```{r}
+cities <- as.vector(unique(reddit_and_cases$City)) %>% na.omit() 
+cities <- cities[cities != "New Orleans"]
 ```
 
 ```{r}
-wsh <- graph_reddit_forecasts("Washington DC", "2020-05-01", "2022-02-18")
-ggsave("Results/Projections/wsh_poisson_nowcasts.png", wsh$nowcast_grid, width = 10, height = 8)
-ggsave("Results/Projections/wsh_poisson_7day.png", wsh$forecast7_grid, width = 10, height = 8)
+for (city in cities) {
+  selection <- reddit_and_cases %>% 
+    filter(City == city) %>% 
+    select(where(~ !all(is.na(.)))) %>% 
+    mutate(across(starts_with("mean_"), ~lag(., n = 1), .names = "lag_{col}")) %>% 
+    na.omit()
+      
+  
+  selection1 <- selection %>%
+    select(-c(Cumulative_Cases, Cumulative_Deaths, Weekly_Deaths)) %>% 
+    filter(complete.cases(.))
+  
+  prcomp <- prcomp(selection1 %>% select(starts_with("mean_")), scale = T)
+  prcomp$rotation <- -1 * prcomp$rotation
+  rotation <- data.frame(prcomp$rotation)
+  rotation <- rownames_to_column(rotation, var = "Variable")
+  
+  r2 <- data.frame(R2 = (prcomp$sdev)^2 / sum((prcomp$sdev)^2)) %>% 
+    mutate(Cumulative_R2 = cumsum(R2),
+         PC = seq(1, nrow(.), by = 1)) %>% 
+    select(PC, R2, Cumulative_R2)
+  rotation1 <- rotation %>%
+    summarize(across(starts_with("PC"),
+                     list(variable = ~ Variable[which.max(.)]), .names = "{.col}_{.fn}")) %>%
+    t() %>% 
+    as.data.frame() %>% 
+    rename(Variable = V1) %>% 
+    bind_cols(r2)
+  
+  rotation1 <- rownames_to_column(rotation1, var = "rowname")
+  rotation1 <- rotation1 %>% 
+    select(-rowname) %>% 
+    select(PC, everything()) %>% 
+    mutate(R2 = round(R2, 3), 
+           Cumulative_R2 = round(Cumulative_R2, 3)) %>% 
+    filter(Cumulative_R2 <= 0.85)
+  
+  variables <- as.vector(rotation1$Variable)
+  additional_column <- c("Weekly_Cases", "week")
+  columns_to_select <- c(variables, additional_column)
+  
+  selection2 <- selection1 %>% 
+    select(all_of(columns_to_select)) %>% 
+    select(Weekly_Cases, everything())
+  
+  model <- glm(Weekly_Cases~., data = selection2, family = "poisson")
+  
+  modified_selection <- selection2 %>% 
+    add_pi(df = ., model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+    select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+  fwrite(modified_selection, paste0("Results/Projections/2024_06_30/", city, "_table.csv"))
+  
+  plot <- ggplot(modified_selection, aes(x = week))+
+    geom_line(aes(y = pred), color = "red")+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    geom_point(aes(y = Weekly_Cases))+
+    scale_y_continuous(labels = scales::comma)+
+    scale_x_date(date_breaks = "2 months")+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    labs(title = paste("Full Model for", city, "Using 7 Indicators"), x = "Date", y = "Cases")
+
+  file_name <- paste0("Results/Projections/2024_06_30/", city, "_forecast.png")
+  ggsave(filename = file_name, plot = plot, width = 8, height = 8)
+  cat("finished graphing", city)
+}
+```
+
+```{r}
+as.data.frame(cities)
+```
+```{r}
+city = "New Orleans"
+selection <- reddit_and_cases %>% 
+  filter(City == city) %>% 
+  select(week, City, everything()) %>% 
+  select(-c(MSA_Code, MSA_Title, mean_function, City)) %>%
+  mutate(across(7:ncol(.), ~lag(., n = 1), .names = "lag_{col}")) %>% 
+  rename(mean_function = mean_function.,
+         lag_mean_function = lag_mean_function.) %>%
+  select(-lag_mean_function) #%>% 
+
+model <- glm(Weekly_Cases ~ mean_Analytic + lag_mean_differ + mean_Clout +
+               lag_mean_illness + mean_Authentic + mean_Race_Related + lag_mean_quantity,
+             family = "poisson", data = selection)
+  
+modified_selection <- selection %>% 
+  add_pi(df = ., model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+  select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+plot <- ggplot(modified_selection, aes(x = week))+
+  geom_line(aes(y = pred), color = "red")+
+  geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+  geom_point(aes(y = Weekly_Cases))+
+  scale_y_continuous(labels = scales::comma)+
+  scale_x_date(date_breaks = "2 months")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  labs(title = paste("Full Model for", city, "Using 7 Indicators"), x = "Date", y = "Cases")
+file_name <- paste0("Results/Projections/2024_06_30/", city, "_forecast.png")
+ggsave(filename = file_name, plot = plot, width = 8, height = 8)
+```
+
+nowcast full model
+
+```{r}
+library(cowplot)
+for (city in cities) {
+  full_nowcast <- reddit_and_cases %>% 
+    filter(City == city) %>% 
+    select(where(~ !all(is.na(.)))) %>% 
+    na.omit() %>% 
+    select(week, Weekly_Cases, starts_with("mean_"))
+  
+  no_lag_model <- glm(Weekly_Cases~. - week, family = "poisson", data = full_nowcast)
+  
+  full_nowcast <- full_nowcast %>% 
+    add_pi(df = ., no_lag_model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+    select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+  
+  p <- ggplot(full_nowcast, aes(x = week))+
+    geom_line(aes(y = pred), color = "red")+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    geom_point(aes(y = Weekly_Cases))+
+    scale_y_continuous(labels = scales::comma)+
+    scale_x_date(date_breaks = "2 months")+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    labs(title = paste("Full Nowcast Model for", city), x = "Date", y = "Cases")
+  
+  file_name <- paste0("Results/Graphs/Forecasts/2024_07_03/nowcasts_", city, ".png")
+  save_plot(filename = file_name, plot = p)
+}
+```
+
+```{r}
+for (city in cities) {
+  full_forecast <- reddit_and_cases %>% 
+    filter(City == city) %>% 
+    select(week, City, everything()) %>% 
+    select(where(~ !all(is.na(.)))) %>% 
+    mutate(across(starts_with("mean_"), ~lag(., n = 1), .names = "lag_{col}")) %>% 
+    na.omit() %>% 
+    select(week, Weekly_Cases, starts_with("lag_mean_"))
+  
+  lag_model <- glm(Weekly_Cases~. - week, family = "poisson", data = full_forecast)
+  
+  full_forecast <- full_forecast %>% 
+    add_pi(df = ., lag_model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+    select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+  
+  p <- ggplot(full_forecast, aes(x = week))+
+    geom_line(aes(y = pred), color = "red")+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    geom_point(aes(y = Weekly_Cases))+
+    scale_y_continuous(labels = scales::comma)+
+    scale_x_date(date_breaks = "2 months")+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    labs(title = paste("Full Forecast Model for", city), x = "Date", y = "Cases")
+  
+  file_name <- paste0("Results/Graphs/Forecasts/2024_07_03/forecasts_", city, ".png")
+  save_plot(filename = file_name, plot = p)
+}
 ```
 

@@ -14,10 +14,10 @@ here::set_here()
 ```
 
 ```{r}
-rank_avg <- read_csv("CSV Files/Average_City_Rank.csv")
-table1 <- read_csv("CSV Files/table_of_average_acf_lag.csv")
-combined <- read_csv("CSV Files/combined_data.csv")
-reddit_and_cases <- read_csv("CSV Files/reddit_and_cases_deaths.csv")
+rank_avg <- read_csv("Results/CSV Files/Average_City_Rank.csv")
+table1 <- read_csv("Results/CSV Files/table_of_average_acf_lag.csv")
+combined <- read_csv("Results/CSV Files/combined_data.csv")
+reddit_and_cases <- read_csv("Results/CSV Files/reddit_and_cases_deaths.csv")
 ```
 Average Correlation
 

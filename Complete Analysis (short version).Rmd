@@ -223,10 +223,10 @@ DT::datatable(step3, options = list(pageLength = 10))
 Above are the missing dates in the combined_reddit_df filtered for Atlanta. There are 23. In these dates, both mean_health and mean_illness have missing values. Since this data comes from Atlanta_daily.csv, check this file for missing dates and/or missing mean_health and mean_illness values. 
 
 ```{r}
-Atlanta_daily <- read_csv("Source Data/03 - Daily Data/Atlanta_daily.csv") %>% 
-  filter(Date > "2020-11-01" & Date < "2020-11-08" |
-           Date > "2021-01-22" & Date < "2021-04-15") %>% 
-  select(Date, mean_health, mean_illness)
+Atlanta_daily <- read_csv("Source Data/Daily Data - New1/Atlanta_daily.csv") %>%
+  filter(Date >= "2020-01-01") %>% 
+  select(Date, mean_health, mean_illness) %>% 
+  filter(is.na(mean_health) | is.na(mean_illness))
 ```
 ```{r}
 DT::datatable(Atlanta_daily, options = list(pageLength = 10))
@@ -238,3 +238,68 @@ In Atlanta_daily.csv, there are missing dates.
 source(here("Functions", "03 - process_reddit_files().R"))
 ```
 
+
+What happens after removing the na.rm = T in line 14 of process_reddit_files()?
+
+```{r}
+source(here("Functions", "05 - covid_data_merging.R"))
+```
+
+```{r}
+combined_reddit_atlanta <- combined_reddit_df %>% 
+  filter(Cities == "Atlanta")
+combined_reddit_atlanta$Date <- as_date(combined_reddit_atlanta$Date)
+combined_reddit_atlanta
+```
+
+```{r}
+# Generate a sequence of dates covering the range of your data
+start_date <- min(combined_reddit_atlanta$Date)
+end_date <- max(combined_reddit_atlanta$Date)
+all_dates <- seq(start_date, end_date, by = "day")
+
+# Find missing dates
+missing_dates <- setdiff(all_dates, combined_reddit_atlanta$Date)
+
+# Convert missing_dates to a data frame with a single column
+missing_dates_df <- data.frame(Date = as_date(missing_dates))
+
+# Bind with combined_reddit_atlanta and create a new column indicating presence of date
+step2 <- bind_rows(
+  mutate(combined_reddit_atlanta, Match = "Yes"),
+  mutate(missing_dates_df, Match = "No")
+) 
+step3 <- step2 %>% 
+  group_by(Match) %>% 
+  summarize(n())
+step2
+step3
+
+```
+
+```{r}
+step4 <- step2 %>% 
+  filter(Match == "No")
+step4
+```
+
+Changing na.rm to false in the process_reddit_files() does not do anything. 
+
+```{r}
+atlanta_clean <- read_csv("Source Data/02 - Clean Data/Atlanta_clean.csv")
+head(atlanta_clean)
+```
+
+```{r}
+atlanta_clean1 <- atlanta_clean %>% 
+  select(-c(author, author_flair_css_class, author_flair_text, body, id, parent_id, score, subreddit, Segment)) %>% 
+  #group_by(Date) %>% 
+  #summarize(mean_health = mean(health, na.rm = F),
+  #          mean_illness = mean(illness, na.rm = F)) %>% 
+  filter(Date == "2021-01-25") #%>% 
+  #arrange(Date) %>% 
+  #select(Date, health, illness)
+atlanta_clean1
+```
+
+In atlanta_clean, there exists no data when a missing date shows up in the step4 variable in line 280. 

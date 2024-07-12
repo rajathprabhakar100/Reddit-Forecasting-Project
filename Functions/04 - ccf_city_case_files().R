@@ -35,9 +35,15 @@ cases <- left_join(covid_cases, new_crosswalk, by = "FIPS") %>%
 cases <- cases %>% 
   gather(key = "Date", value = "Value", "1/22/20":ncol(cases)) %>% 
   select(Date, everything()) 
+
 cases$Date <- as.Date(cases$Date, format = "%m/%d/%y")
 cases <- cases %>% rename(Cases = Value)
 cases$Cases <- as.numeric(cases$Cases)
+
+cases <- cases %>% 
+  mutate(week = floor_date(Date, "week")) %>% 
+  select(-Date) %>% 
+  select(week, everything())
 
 deaths <- left_join(covid_deaths, new_crosswalk, by = "FIPS") %>% 
   mutate(across(starts_with("new_crosswalk"), ~ ifelse(is.na(FIPS), "NA", .))) %>% 
@@ -49,6 +55,11 @@ deaths <- deaths %>%
 deaths$Date <- as.Date(deaths$Date, format = "%m/%d/%y")
 deaths <- deaths %>% rename(Deaths = Value)
 deaths$Deaths <- as.numeric(deaths$Deaths)
+
+deaths <- deaths %>% 
+  mutate(week = floor_date(Date, "week")) %>%
+  select(-Date) %>% 
+  select(week, everything())
 
 ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code = NULL, city = NULL,
                                 state = NULL, plots = TRUE, lags = "both") {
@@ -62,31 +73,27 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
   file_path <- file.path(folder_path, filename)
   #print(file_path)
   data <- fread(here(file_path))
-  data$Date <- as.Date(data$Date)
+  data$week <- as.Date(data$week)
   
   if (!is.null(code)) {
     city_msa_cases <- cases %>% 
       filter(MSA_Code == code) %>% 
-      group_by(Date) %>% 
+      group_by(week) %>% 
       summarize(Cases = sum(Cases),
                 Est_Population = sum(estpop2020),
                 Population = sum(pop2020))
     #set up for ccf
     city_msa_deaths <- deaths %>% 
       filter(MSA_Code == code) %>% 
-      group_by(Date) %>% 
+      group_by(week) %>% 
       summarize(Deaths = sum(Deaths),
                 Est_Population = sum(estpop2020),
                 Population = sum(pop2020))
 
-    city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "Date") %>% 
-      mutate(Daily_Cases = Cases - lag(Cases, default = 0),
-             Daily_Deaths = Deaths - lag(Deaths, default = 0),
-             Daily_Cases7 = rollmean(Daily_Cases, k = 7, fill = NA),
-             Daily_Deaths7 = rollmean(Daily_Deaths, k = 7, fill = NA))
-    city_combined$Daily_Cases7 <- round(city_combined$Daily_Cases7, 2)
-    city_combined$Daily_Deaths7 <- round(city_combined$Daily_Deaths7, 2)
-    city_combined <- left_join(city_combined, data, by = "Date") %>% 
+    city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "week") %>% 
+      mutate(Weekly_Cases = Cases - lag(Cases, default = 0),
+             Weekly_Deaths = Deaths - lag(Deaths, default = 0))
+    city_combined <- left_join(city_combined, data, by = "week") %>% 
       na.omit() %>% 
       rename(Est_Population = Est_Population.x,
              Population = Population.x) %>% 
@@ -149,12 +156,13 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
         #show plots
         
         # Select columns to perform ccf on (excluding the first 7 columns)
-        ccf_columns <- names(city_combined)[10:ncol(city_combined)]
+        ccf_columns <- names(city_combined)[8:ncol(city_combined)]
         
         acf_tables_list <- list()
+        ccf_plots <- list()
         
         for (column in ccf_columns) {
-          ccf_result <- ccf(city_combined$Daily_Cases7, city_combined[[column]], plot = FALSE, lag.max = 40)
+          ccf_result <- ccf(city_combined$Weekly_Cases, city_combined[[column]], plot = FALSE, lag.max = 40)
           
           acf_table <- data.frame(Lag = ccf_result$lag, ACF = ccf_result$acf)
           acf_table <- acf_table %>%
@@ -174,8 +182,10 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
           
           actual_column_name <- colnames(city_combined)[which(colnames(city_combined) == column)]
           
-          plot(ccf_result, main = paste("Daily Cases &", actual_column_name, "for", city,",", state))
+          plot <- plot(ccf_result, main = paste("Weekly Cases &", actual_column_name, "for", city,",", state))
+          ccf_plots[[column]] <- plot
         }
+        
         combined_acf_table <- do.call(rbind, acf_tables_list)
         summary_table_positive <- combined_acf_table %>% 
           filter(Sign == "Lag > 0") %>%
@@ -200,7 +210,7 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
           return(combined_acf_table %>% select(Variable, City, State, Max_ACF, Lag) %>%
                    mutate(City = city, State = state))
         }
-        
+        return(ccf_plots)
         
         
       }
@@ -208,12 +218,12 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
       else {
         #don't show plots
         # Select columns to perform ccf on (excluding the first 7 columns)
-        ccf_columns <- names(city_combined)[10:ncol(city_combined)]
+        ccf_columns <- names(city_combined)[8:ncol(city_combined)]
         
         acf_tables_list <- list()
         
         for (column in ccf_columns) {
-          ccf_result <- ccf(city_combined$Daily_Cases7, city_combined[[column]], plot = FALSE,
+          ccf_result <- ccf(city_combined$Weekly_Cases, city_combined[[column]], plot = FALSE,
                             lag.max = 40)
           
           acf_table <- data.frame(Lag = ccf_result$lag, ACF = ccf_result$acf)
@@ -239,13 +249,11 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
           filter(Sign == "Lag > 0") %>%
           mutate(City = city,
                  State = state) %>% 
-          select(-c(1)) %>% 
           arrange(desc(abs(Max_ACF)))
         summary_table_negative <- combined_acf_table %>% 
           filter(Sign == "Lag < 0") %>% 
           mutate(City = city, 
                  State = state) %>% 
-          select(-c(1)) %>% 
           arrange(desc(abs(Max_ACF)))
         if (lags == "negative") {
           return(summary_table_negative)
@@ -268,4 +276,134 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
   }
 }
 
+ccf_tables <- function(folder_path, filename, explanatory = NULL, code = NULL, city = NULL,
+                       state = NULL) {
+  file_path <- file.path(folder_path, filename)
+  #print(file_path)
+  data <- fread(here(file_path))
+  data$week <- as.Date(data$week)
+  
+  city_msa_cases <- cases %>% 
+    filter(MSA_Code == code) %>% 
+    group_by(week) %>% 
+    summarize(Cases = sum(Cases),
+              Est_Population = sum(estpop2020),
+              Population = sum(pop2020))
+  
+  #set up for ccf
+  city_msa_deaths <- deaths %>% 
+    filter(MSA_Code == code) %>% 
+    group_by(week) %>% 
+    summarize(Deaths = sum(Deaths),
+              Est_Population = sum(estpop2020),
+              Population = sum(pop2020))
+  
+  city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "week") %>% 
+    mutate(Weekly_Cases = Cases - lag(Cases, default = 0),
+           Weekly_Deaths = Deaths - lag(Deaths, default = 0))
+  city_combined <- left_join(city_combined, data, by = "week") %>% 
+    na.omit() %>% 
+    rename(Est_Population = Est_Population.x,
+           Population = Population.x) %>% 
+    select(-c(Est_Population.y, Population.y))
+  ccf_columns <- names(city_combined)[8:ncol(city_combined)]
+  
+  acf_tables_list <- list()
+  
+  for (column in ccf_columns) {
+    ccf_result <- ccf(city_combined$Weekly_Cases, city_combined[[column]], plot = FALSE,
+                      lag.max = 40)
+    
+    acf_table <- data.frame(Lag = ccf_result$lag, ACF = ccf_result$acf)
+    acf_table <- acf_table %>%
+      mutate(Sign = case_when(
+        Lag <= 0 ~ "Lag < 0",
+        TRUE ~ "Lag > 0")) %>% 
+      group_by(Sign) %>% 
+      summarise(Max_ACF = max(ACF), 
+                Lag = Lag[which.max(ACF)]) %>% 
+      mutate(Variable = column,
+             City = city,
+             State = state,
+             Est_Population = mean(city_combined$Est_Population)) %>% 
+      select(Variable, City, State, Max_ACF, Lag, Sign)
+    #return(acf_table)
+    
+    acf_tables_list[[column]] <- acf_table
+    
+  }
+  combined_acf_table <- do.call(rbind, acf_tables_list)
+  summary_table_positive <- combined_acf_table %>% 
+    filter(Sign == "Lag > 0") %>%
+    mutate(City = city,
+           State = state) %>% 
+    arrange(desc(abs(Max_ACF)))
+  summary_table_negative <- combined_acf_table %>% 
+    filter(Sign == "Lag < 0") %>% 
+    mutate(City = city, 
+           State = state) %>% 
+    arrange(desc(abs(Max_ACF)))
+  return(combined_acf_table %>%
+           mutate(City = city, 
+                  State = state,
+                  Est_Population = mean(city_combined$Est_Population),
+                  Population = mean(city_combined$Population)))
+}
 
+plot_ccf <- function(folder_path, filename, code = NULL, city = NULL, state = NULL) {
+  file_path <- file.path(folder_path, filename)
+  data <- fread(here(file_path))
+  data$week <- as.Date(data$week)
+  
+  city_msa_cases <- cases %>% 
+    filter(MSA_Code == code) %>% 
+    group_by(week) %>% 
+    summarize(Cases = sum(Cases),
+              Est_Population = sum(estpop2020),
+              Population = sum(pop2020))
+  
+  city_msa_deaths <- deaths %>% 
+    filter(MSA_Code == code) %>% 
+    group_by(week) %>% 
+    summarize(Deaths = sum(Deaths),
+              Est_Population = sum(estpop2020),
+              Population = sum(pop2020))
+  city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "week") %>% 
+    mutate(Weekly_Cases = Cases - lag(Cases, default = 0),
+           Weekly_Deaths = Deaths - lag(Deaths, default = 0))
+  city_combined <- left_join(city_combined, data, by = "week") %>% 
+    na.omit() %>% 
+    rename(Est_Population = Est_Population.x,
+           Population = Population.x) %>% 
+    select(-c(Est_Population.y, Population.y))
+  ccf_columns <- names(city_combined)[8:ncol(city_combined)]
+  
+  output_dir <- paste0("Results/Graphs/CCF Plots/", city)
+  
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir)
+  }
+  
+  for (column in ccf_columns) {
+    # Generate the plot filename
+    plot_filename <- file.path(output_dir, paste0(city, "_", state, "_", column, "_ccf.png"))
+    
+    
+    # Generate the CCF plot
+    ccf_result <- ccf(city_combined$Weekly_Cases, city_combined[[column]], plot = FALSE, lag.max = 40)
+    
+    # Open a PNG device
+    png(plot_filename, width = 800, height = 600)
+    
+    plot(ccf_result, main = paste("Weekly Cases &", column, "for", city, ",", state))
+    
+    # Close the PNG device
+    dev.off()
+    
+    # Store the plot filename in the list
+    #ccf_plots[[column]] <- plot_filename
+  }
+  
+  #return(ccf_plots)
+  
+}
