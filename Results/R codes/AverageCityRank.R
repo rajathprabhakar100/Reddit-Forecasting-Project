@@ -32,3 +32,4 @@ rank_avg <- average_city_rank %>%
             avg_rank_neg = mean(Negative_Lag_Rank))
 fwrite(rank_avg, paste("Results/CSV Files/Average_City_Rank.csv"))
 
+

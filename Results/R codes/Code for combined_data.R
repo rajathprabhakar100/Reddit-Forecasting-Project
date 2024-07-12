@@ -1,6 +1,8 @@
-fwrite(combo, paste("Results/CSV Files/combined_data.csv"))
+library(tidyverse)
+library(here)
+source(here("Functions/04 - ccf_city_case_files().R"))
 
-files <- list.files("Source Data/Daily Data") %>% 
+files <- list.files("Source Data/Weekly Data") %>% 
   as.vector()
 MSA_Codes <- c("C1206", "C1242","C1258", "C1446","C1674", "C1698","C1814",
                "C1910","C1974","C1982","C2642","C2814", "C3108","C3346",
@@ -32,7 +34,7 @@ for (i in 1:nrow(info)) {
   filename <- row$filename
   
   # Call your function for each row
-  acf_result <- ccf_city_case_files("Source Data/Daily Data", filename = as.character(filename),
+  acf_result <- ccf_city_case_files("Source Data/Weekly Data", filename = as.character(filename),
                                     code = msa_code, city = City, state = State, 
                                     plots = FALSE, explanatory = NULL, lags = "both")
   
@@ -40,6 +42,11 @@ for (i in 1:nrow(info)) {
   result_list[[i]] <- acf_result
 }
 result_table <- do.call(rbind, result_list)
-
+result_table[result_table$Variable == "mean_function.", "Variable"] <- "mean_function"
 fwrite(result_table, paste("Results/CSV Files/combined_data.csv"))
 
+combo <- fread("Results/CSV Files/combined_data.csv")
+
+ccf_city_case_files("Source Data/Weekly Data", filename = "atlanta_weekly.csv",
+                    code = "C1206", city = "Atlanta", state = "Georgia", 
+                    plots = T, explanatory = NULL, lags = "both")
