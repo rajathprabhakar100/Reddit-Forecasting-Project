@@ -141,10 +141,10 @@ mean_illness has the highest average rank for positive lags, while mean_analytic
 source(here("Results/R codes", "Code for table_of_average_acf_lag.R"))
 ```
 ```{r}
-table1 %>% arrange(Average_ACF_positive)
+table1 %>% arrange(desc(Average_ACF_positive))
 ```
 
-mean_illness has the highest correlation with Covid cases, and has an average lag of about 14 days. 
+Mean_Emo_Sad has the highest correlation with Covid Cases for Positive Lags, with an average lag of about 7 days. 
 
 ```{r}
 top12variables <- table1 %>%
@@ -266,7 +266,7 @@ save(metropolitan_forecasts1, file = "Results/R codes/metropolitan_forecasts1.RD
 ```
 
 ```{r}
-load("Results/R codes/metropolitan_forecasts1.RData")
+                                                              1A"Results/R codes/metropolitan_forecasts1.RData")
 ```
 
 ```{r}
@@ -734,6 +734,326 @@ for (city in cities) {
   
   file_name <- paste0("Results/Graphs/Forecasts/2024_07_03/forecasts_", city, ".png")
   save_plot(filename = file_name, plot = p)
+}
+```
+
+7-17-2024
+```{r}
+for (city in cities) {
+  selection <- reddit_and_cases %>% 
+    filter(City == city) %>% 
+    filter(week < "2022-03-06") %>% 
+    select(where(~ !all(is.na(.)))) %>% 
+    na.omit()
+  selection1 <- selection %>%
+    select(-c(Cumulative_Cases, Cumulative_Deaths, Weekly_Deaths)) %>% 
+    filter(complete.cases(.))
+  prcomp <- prcomp(selection1 %>% select(starts_with("mean_")), scale = T)
+  prcomp$rotation <- -1 * prcomp$rotation
+  rotation <- data.frame(prcomp$rotation)
+  rotation <- rownames_to_column(rotation, var = "Variable")
+
+  r2 <- data.frame(R2 = (prcomp$sdev)^2 / sum((prcomp$sdev)^2)) %>% 
+    mutate(Cumulative_R2 = cumsum(R2),
+          PC = seq(1, nrow(.), by = 1)) %>% 
+    select(PC, R2, Cumulative_R2)
+
+  rotation1 <- rotation %>%
+    summarize(across(starts_with("PC"),
+                    list(variable = ~ Variable[which.max(.)]), .names = "{.col}_{.fn}")) %>%
+    t() %>% 
+    as.data.frame() %>% 
+    rename(Variable = V1) %>% 
+    bind_cols(r2) %>% 
+    rownames_to_column(., var = "rowname") %>% 
+    select(-rowname) %>% 
+    select(PC, everything()) %>% 
+    mutate(R2 = round(R2, 3), 
+          Cumulative_R2 = round(Cumulative_R2, 3)) %>% 
+    filter(Cumulative_R2 <= 0.998)
+
+  variables <- as.vector(rotation1$Variable)
+  additional_column <- c("Weekly_Cases", "week")
+  columns_to_select <- c(variables, additional_column)
+
+  selection2 <- selection1 %>% 
+    select(all_of(columns_to_select)) %>% 
+    select(week, Weekly_Cases, everything())
+  model <- glm(Weekly_Cases~., data = selection2, family = "poisson")
+
+  modified_selection <- selection2 %>% 
+    add_pi(df = ., model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+    select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+  
+  p <- ggplot(modified_selection, aes(x = week))+
+    geom_line(aes(y = pred), color = "red")+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    geom_point(aes(y = Weekly_Cases))+
+    scale_y_continuous(labels = scales::comma)+
+    scale_x_date(date_breaks = "2 months")+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    labs(title = paste("Nowcast for", city, "Using", as.character(length(unique(variables))),  "Indicators"),
+         x = "Date", y = "Cases", 
+         subtitle = "Cumulative Variance Explained = 0.998")
+  save_plot(paste0("Results/Graphs/Forecasts/2024_07_17/nowcast/", city, ".png"), plot = p)
+}
+```
+
+1 week ahead forecast
+```{r}
+for (city in cities) {
+  full_forecast <- reddit_and_cases %>% 
+    filter(City == city) %>%
+    filter(week < "2022-03-06") %>% 
+    select(week, City, everything()) %>% 
+    select(where(~ !all(is.na(.)))) %>% 
+    mutate(across(starts_with("mean_"), ~lag(., n = 1), .names = "lag_{col}")) %>% 
+    na.omit() %>% 
+    select(week, Weekly_Cases, starts_with("lag_mean_"))
+
+  prcomp <- prcomp(full_forecast %>% select(starts_with("lag_mean_")), scale = T)
+  prcomp$rotation <- -1 * prcomp$rotation
+  rotation <- data.frame(prcomp$rotation)
+  rotation <- rownames_to_column(rotation, var = "Variable")
+
+  r2 <- data.frame(R2 = (prcomp$sdev)^2 / sum((prcomp$sdev)^2)) %>% 
+    mutate(Cumulative_R2 = cumsum(R2),
+          PC = seq(1, nrow(.), by = 1)) %>% 
+    select(PC, R2, Cumulative_R2)
+
+  rotation1 <- rotation %>%
+    summarize(across(starts_with("PC"),
+                    list(variable = ~ Variable[which.max(.)]), .names = "{.col}_{.fn}")) %>%
+    t() %>% 
+    as.data.frame() %>% 
+    rename(Variable = V1) %>% 
+    bind_cols(r2) %>% 
+    rownames_to_column(., var = "rowname") %>% 
+    select(-rowname) %>% 
+    select(PC, everything()) %>% 
+    mutate(R2 = round(R2, 3), 
+          Cumulative_R2 = round(Cumulative_R2, 3)) %>% 
+    filter(Cumulative_R2 <= 0.998)
+
+  variables <- as.vector(rotation1$Variable)
+  additional_column <- c("Weekly_Cases", "week")
+  columns_to_select <- c(variables, additional_column)
+
+  selection <- full_forecast %>% 
+    select(all_of(columns_to_select)) %>% 
+    select(week, Weekly_Cases, everything())
+
+  model <- glm(Weekly_Cases~., data = selection, family = "poisson")
+  summary(model)
+  modified_selection <- selection %>% 
+    add_pi(df = ., model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+    select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+
+  p <- ggplot(modified_selection, aes(x = week))+
+    geom_line(aes(y = pred), color = "red")+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    geom_point(aes(y = Weekly_Cases))+
+    scale_y_continuous(labels = scales::comma)+
+    scale_x_date(date_breaks = "2 months")+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    labs(title = paste("1 Week Ahead Model for", city, "Using", as.character(length(unique(variables))), "Indicators"),
+        x = "Date", y = "Cases",
+        subtitle = "Cumulative Variance Explained = 0.998")
+  save_plot(paste0("Results/Graphs/Forecasts/2024_07_17/1 week/", city, ".png"), plot = p)
+}
+```
+
+2 week ahead
+
+```{r}
+for (city in cities) {
+  full_forecast <- reddit_and_cases %>% 
+    filter(City == city) %>%
+    filter(week < "2022-03-06") %>% 
+    select(week, City, everything()) %>% 
+    select(where(~ !all(is.na(.)))) %>% 
+    mutate(across(starts_with("mean_"), ~lag(., n = 2), .names = "lag2_{col}")) %>% 
+    na.omit() %>% 
+    select(week, Weekly_Cases, starts_with("lag2_mean_"))
+
+  prcomp <- prcomp(full_forecast %>% select(starts_with("lag2_mean_")), scale = T)
+  prcomp$rotation <- -1 * prcomp$rotation
+  rotation <- data.frame(prcomp$rotation)
+  rotation <- rownames_to_column(rotation, var = "Variable")
+
+  r2 <- data.frame(R2 = (prcomp$sdev)^2 / sum((prcomp$sdev)^2)) %>% 
+    mutate(Cumulative_R2 = cumsum(R2),
+          PC = seq(1, nrow(.), by = 1)) %>% 
+    select(PC, R2, Cumulative_R2)
+
+  rotation1 <- rotation %>%
+    summarize(across(starts_with("PC"),
+                    list(variable = ~ Variable[which.max(.)]), .names = "{.col}_{.fn}")) %>%
+    t() %>% 
+    as.data.frame() %>% 
+    rename(Variable = V1) %>% 
+    bind_cols(r2) %>% 
+    rownames_to_column(., var = "rowname") %>% 
+    select(-rowname) %>% 
+    select(PC, everything()) %>% 
+    mutate(R2 = round(R2, 3), 
+          Cumulative_R2 = round(Cumulative_R2, 3)) %>% 
+    filter(Cumulative_R2 <= 0.998)
+
+  variables <- as.vector(rotation1$Variable)
+  additional_column <- c("Weekly_Cases", "week")
+  columns_to_select <- c(variables, additional_column)
+
+  selection <- full_forecast %>% 
+    select(all_of(columns_to_select)) %>% 
+    select(week, Weekly_Cases, everything())
+
+  model <- glm(Weekly_Cases~., data = selection, family = "poisson")
+  summary(model)
+  modified_selection <- selection %>% 
+    add_pi(df = ., model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+    select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+
+  p <- ggplot(modified_selection, aes(x = week))+
+    geom_line(aes(y = pred), color = "red")+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    geom_point(aes(y = Weekly_Cases))+
+    scale_y_continuous(labels = scales::comma)+
+    scale_x_date(date_breaks = "2 months")+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    labs(title = paste("2 Week Ahead Model for", city, "Using", as.character(length(unique(variables))), "Indicators"),
+        x = "Date", y = "Cases",
+        subtitle = "Cumulative Variance Explained = 0.998")
+  save_plot(paste0("Results/Graphs/Forecasts/2024_07_17/2 week/", city, ".png"), plot = p)
+}
+```
+
+3 week ahead
+
+```{r}
+for (city in cities) {
+  full_forecast <- reddit_and_cases %>% 
+    filter(City == city) %>%
+    filter(week < "2022-03-06") %>% 
+    select(week, City, everything()) %>% 
+    select(where(~ !all(is.na(.)))) %>% 
+    mutate(across(starts_with("mean_"), ~lag(., n = 3), .names = "lag3_{col}")) %>% 
+    na.omit() %>% 
+    select(week, Weekly_Cases, starts_with("lag3_mean_"))
+
+  prcomp <- prcomp(full_forecast %>% select(starts_with("lag3_mean_")), scale = T)
+  prcomp$rotation <- -1 * prcomp$rotation
+  rotation <- data.frame(prcomp$rotation)
+  rotation <- rownames_to_column(rotation, var = "Variable")
+
+  r2 <- data.frame(R2 = (prcomp$sdev)^2 / sum((prcomp$sdev)^2)) %>% 
+    mutate(Cumulative_R2 = cumsum(R2),
+          PC = seq(1, nrow(.), by = 1)) %>% 
+    select(PC, R2, Cumulative_R2)
+
+  rotation1 <- rotation %>%
+    summarize(across(starts_with("PC"),
+                    list(variable = ~ Variable[which.max(.)]), .names = "{.col}_{.fn}")) %>%
+    t() %>% 
+    as.data.frame() %>% 
+    rename(Variable = V1) %>% 
+    bind_cols(r2) %>% 
+    rownames_to_column(., var = "rowname") %>% 
+    select(-rowname) %>% 
+    select(PC, everything()) %>% 
+    mutate(R2 = round(R2, 3), 
+          Cumulative_R2 = round(Cumulative_R2, 3)) %>% 
+    filter(Cumulative_R2 <= 0.998)
+
+  variables <- as.vector(rotation1$Variable)
+  additional_column <- c("Weekly_Cases", "week")
+  columns_to_select <- c(variables, additional_column)
+
+  selection <- full_forecast %>% 
+    select(all_of(columns_to_select)) %>% 
+    select(week, Weekly_Cases, everything())
+
+  model <- glm(Weekly_Cases~., data = selection, family = "poisson")
+  summary(model)
+  modified_selection <- selection %>% 
+    add_pi(df = ., model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+    select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+
+  p <- ggplot(modified_selection, aes(x = week))+
+    geom_line(aes(y = pred), color = "red")+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    geom_point(aes(y = Weekly_Cases))+
+    scale_y_continuous(labels = scales::comma)+
+    scale_x_date(date_breaks = "2 months")+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    labs(title = paste("3 Week Ahead Model for", city, "Using", as.character(length(unique(variables))), "Indicators"),
+        x = "Date", y = "Cases",
+        subtitle = "Cumulative Variance Explained = 0.998")
+  save_plot(paste0("Results/Graphs/Forecasts/2024_07_17/3 week/", city, ".png"), plot = p)
+}
+```
+
+4 week ahead
+```{r}
+for (city in cities) {
+  full_forecast <- reddit_and_cases %>% 
+    filter(City == city) %>%
+    filter(week < "2022-03-06") %>% 
+    select(week, City, everything()) %>% 
+    select(where(~ !all(is.na(.)))) %>% 
+    mutate(across(starts_with("mean_"), ~lag(., n = 4), .names = "lag4_{col}")) %>% 
+    na.omit() %>% 
+    select(week, Weekly_Cases, starts_with("lag4_mean_"))
+
+  prcomp <- prcomp(full_forecast %>% select(starts_with("lag4_mean_")), scale = T)
+  prcomp$rotation <- -1 * prcomp$rotation
+  rotation <- data.frame(prcomp$rotation)
+  rotation <- rownames_to_column(rotation, var = "Variable")
+
+  r2 <- data.frame(R2 = (prcomp$sdev)^2 / sum((prcomp$sdev)^2)) %>% 
+    mutate(Cumulative_R2 = cumsum(R2),
+          PC = seq(1, nrow(.), by = 1)) %>% 
+    select(PC, R2, Cumulative_R2)
+
+  rotation1 <- rotation %>%
+    summarize(across(starts_with("PC"),
+                    list(variable = ~ Variable[which.max(.)]), .names = "{.col}_{.fn}")) %>%
+    t() %>% 
+    as.data.frame() %>% 
+    rename(Variable = V1) %>% 
+    bind_cols(r2) %>% 
+    rownames_to_column(., var = "rowname") %>% 
+    select(-rowname) %>% 
+    select(PC, everything()) %>% 
+    mutate(R2 = round(R2, 3), 
+          Cumulative_R2 = round(Cumulative_R2, 3)) %>% 
+    filter(Cumulative_R2 <= 0.998)
+
+  variables <- as.vector(rotation1$Variable)
+  additional_column <- c("Weekly_Cases", "week")
+  columns_to_select <- c(variables, additional_column)
+
+  selection <- full_forecast %>% 
+    select(all_of(columns_to_select)) %>% 
+    select(week, Weekly_Cases, everything())
+
+  model <- glm(Weekly_Cases~., data = selection, family = "poisson")
+  summary(model)
+  modified_selection <- selection %>% 
+    add_pi(df = ., model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
+    select(week, Forecast_Lwr, pred, Forecast_Upr, everything())
+
+  p <- ggplot(modified_selection, aes(x = week))+
+    geom_line(aes(y = pred), color = "red")+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    geom_point(aes(y = Weekly_Cases))+
+    scale_y_continuous(labels = scales::comma)+
+    scale_x_date(date_breaks = "2 months")+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    labs(title = paste("4 Week Ahead Model for", city, "Using", as.character(length(unique(variables))), "Indicators"),
+        x = "Date", y = "Cases",
+        subtitle = "Cumulative Variance Explained = 0.998")
+  save_plot(paste0("Results/Graphs/Forecasts/2024_07_17/4 week/", city, ".png"), plot = p)
 }
 ```
 

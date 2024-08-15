@@ -72,53 +72,57 @@ ccf_city_case_files <- function(folder_path, filename, explanatory = NULL, code 
   
   file_path <- file.path(folder_path, filename)
   #print(file_path)
-  data <- fread(here(file_path))
-  data$week <- as.Date(data$week)
+  data <- fread("Source Data/Weekly Data/atlanta_weekly.csv") %>% 
+    mutate(week = as_date(week))
   
   if (!is.null(code)) {
     city_msa_cases <- cases %>% 
       filter(MSA_Code == code) %>% 
-      group_by(week, FIPS, Admin2) %>% 
+      group_by(week, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
       summarize(Cumulative_Cases = Cases,
                 Est_Population = unique(estpop2020),
                 Population = unique(pop2020)) %>% 
       ungroup() %>% 
-      group_by(FIPS, Admin2,week) %>% 
+      group_by(FIPS, Admin2,MSA_Code, MSA_Title, week) %>% 
       slice_tail(n = 1) %>% 
       na.omit() %>% 
       ungroup() %>% 
-      group_by(week) %>%
+      group_by(week, MSA_Code, MSA_Title) %>%
       summarize(Cumulative_Cases = sum(Cumulative_Cases),
                 Est_Population = sum(Est_Population),
-                Population = sum(Population))
+                Population = sum(Population)) %>% 
+      mutate(week = as_date(week))
     
     #set up for ccf
     city_msa_deaths <- deaths %>% 
       filter(MSA_Code == code) %>% 
-      group_by(week, FIPS, Admin2) %>% 
-      summarize(Cumulative_Deaths = Cases,
+      group_by(week, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
+      summarize(Cumulative_Deaths = Deaths,
                 Est_Population = unique(estpop2020),
                 Population = unique(pop2020)) %>% 
       ungroup() %>% 
-      group_by(FIPS, Admin2,week) %>% 
+      group_by(FIPS, Admin2, MSA_Code, MSA_Title, week) %>% 
       slice_tail(n = 1) %>% 
       na.omit() %>% 
       ungroup() %>% 
-      group_by(week) %>%
+      group_by(week, MSA_Code, MSA_Title) %>%
       summarize(Cumulative_Deaths = sum(Cumulative_Deaths),
                 Est_Population = sum(Est_Population),
-                Population = sum(Population))
+                Population = sum(Population)) %>% 
+      mutate(week = as_date(week))
     
-    
-    city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "week") %>% 
-      mutate(Weekly_Cases = Cumulative_Cases - lag(Cumulative_Cases, default = 0),
-             Weekly_Deaths = Cumulative_Deaths - lag(Cumulative_Deaths, default = 0))
-    city_combined <- left_join(city_combined, data, by = "week") %>% 
-      na.omit() %>% 
-      rename(Est_Population = Est_Population.x,
+    city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "week") %>%
+      ungroup() %>% 
+      rename(MSA_Code = MSA_Code.x,
+             MSA_Title = MSA_Title.x,
+             Est_Population = Est_Population.x,
              Population = Population.x) %>% 
-      select(-c(Est_Population.y, Population.y))
-    #return(city_combined)
+      select(-c(Est_Population.y, Population.y, MSA_Code.y, MSA_Title.y)) %>% 
+      arrange(week) %>% 
+      mutate(Weekly_Cases = Cumulative_Cases - lag(Cumulative_Cases, n = 1, default = 0),
+             Weekly_Deaths = Cumulative_Deaths - lag(Cumulative_Deaths, n = 1, default = 0))
+    city_combined <- left_join(city_combined, data, by = "week") %>% 
+      na.omit()
     
     if (!is.null(explanatory)) {
       #run ccf for one variable

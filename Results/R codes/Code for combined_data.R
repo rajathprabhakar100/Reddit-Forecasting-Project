@@ -41,7 +41,8 @@ for (i in 1:nrow(info)) {
   # Store the result in the list
   result_list[[i]] <- acf_result
 }
-result_table <- do.call(rbind, result_list)
+result_table <- do.call(rbind, result_list) %>% 
+  filter(Variable != "Weekly_Cases" & Variable != "Weekly_Deaths")
 result_table[result_table$Variable == "mean_function.", "Variable"] <- "mean_function"
 fwrite(result_table, paste("Results/CSV Files/combined_data.csv"))
 
