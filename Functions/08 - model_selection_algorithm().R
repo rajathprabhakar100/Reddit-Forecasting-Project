@@ -143,13 +143,13 @@ model_selection_pca <- function(city) {
     variables <- c(variables, additional_column)
     
     results <- list()
-    
     for (variable in 1:length(variables)) {
-      formula_str <- paste("Weekly_Cases ~", paste(variables[1:variable], collapse = "+"))
+      formula_str <- paste("Weekly_Cases ~ Weekly_Cases7 + ", paste(variables[1:variable], collapse = "+"))
       #print(formula_str)
       
       city_training_data <- reddit_and_cases %>%
         filter(City == city) %>%
+        mutate(Weekly_Cases7 = lag(Weekly_Cases, n = 1)) %>% 
         filter(week <= date - 84)
       
       # Use tryCatch to handle errors
@@ -158,11 +158,13 @@ model_selection_pca <- function(city) {
         
         insample <- reddit_and_cases %>% 
           filter(City == city) %>% 
+          mutate(Weekly_Cases7 = lag(Weekly_Cases, n = 1)) %>% 
           filter(week <= date - 84) %>% 
           add_pi(df = ., fit = model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
           select(week, Weekly_Cases, Forecast_Lwr, pred, Forecast_Upr, everything())
         outsample <- reddit_and_cases %>%
           filter(City == city) %>%
+          mutate(Weekly_Cases7 = lag(Weekly_Cases, n = 1)) %>% 
           filter(week > date - 84 & week <= date) %>%
           add_pi(df = ., fit = model, names = c("Forecast_Lwr", "Forecast_Upr")) %>%
           select(week, Weekly_Cases, Forecast_Lwr, pred, Forecast_Upr, everything())
@@ -171,13 +173,15 @@ model_selection_pca <- function(city) {
                     MAE = mean(abs(Weekly_Cases - pred)),
                     MAPE = (100/nrow(.)) * sum(abs((Weekly_Cases - pred)/Weekly_Cases)))
         
+        
         # results[[variable]] <- city_prediction_data
-        results[[variable]] <- list(training = city_training_data,
+        results[[paste0("predictors", variable)]] <- list(training = city_training_data,
                                     insample_data = insample,
                                     outsample_data = outsample,
                                     summary1 = city_prediction_data_summary)
         TRUE  # Indicate success
-      }, error = function(e) {
+      },
+      error = function(e) {
         message("Error in model fitting: ", e$message)
         FALSE  # Indicate failure
       })
@@ -191,33 +195,19 @@ model_selection_pca <- function(city) {
     #result_df <- bind_rows(results)
     results_by_date[[as.character(as_date(date))]] <- results
     
-    summaries_and_predictions <- list()
-    for (date in names(results_by_date)) {
-      results_for_date <- results_by_date[[date]]
-      summary_list <- lapply(results_for_date, function(result) result$summary1)
-      summaries <- bind_rows(summary_list)
-      
-      full_data <- setNames(
-        results_for_date,
-        paste0("predictors", seq_along(results_for_date))
-      )
-      summaries_and_predictions[[date]] <- list(
-        summary = summaries,
-        full_data = full_data
-      )
-    }
-  }
-  return(summaries_and_predictions)
-}
-atlanta <- model_selection_pca("Atlanta")
 
-save(atlanta, file = "Environments/atlanta_pca.RData")
+  }
+  return(results_by_date)
+}
+atlanta1 <- model_selection_pca("Atlanta")
+
+save(atlanta1, file = "Environments/atlanta_pca.RData")
 load("Environments/atlanta_pca.RData")
 
-     all_summaries <- list()  
-for (date in names(summaries_and_predictions)) {
+all_summaries <- list()  
+for (date in names(atlanta1)) {
   # Extract the summary data frame for the current date
-  summary_for_date <- summaries_and_predictions[[date]]$summary
+  summary_for_date <- atlanta1[[date]]$summary
   
   # Add a new column with the current date
   summary_for_date$week <- date
@@ -231,7 +221,7 @@ return(all_summaries)
 
 
 # Combine all the summaries into one data frame
-atlanta1 <- bind_rows(all_summaries) %>% select(num_pred, week, everything())
+atlanta1 <- bind_rows(all_summaries) #%>% select(num_pred, week, everything())
 atlanta2 <- atlanta$`2022-08-21`$summary
 atlanta3 <- atlanta$`2022-08-21`$full_data$predictors84$insample_data
 atlanta4 <- atlanta$`2022-08-21`$full_data$predictors1$outsample_data
