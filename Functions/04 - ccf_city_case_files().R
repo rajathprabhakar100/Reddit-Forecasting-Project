@@ -1,6 +1,5 @@
 library(tidyverse)
 library(data.table)
-library(readr)
 library(zoo)
 library(here)
 library(readxl)
@@ -431,3 +430,87 @@ plot_ccf <- function(folder_path, filename, code = NULL, city = NULL, state = NU
   #return(ccf_plots)
   
 }
+
+
+ccf_by_year <- function(folder_path, filename, explanatory = NULL, code = NULL, city = NULL,
+                        state = NULL) {
+  file_path <- file.path(folder_path, filename)
+  #print(file_path)
+  data <- fread(here(file_path)) %>% 
+    separate(week, into = c("year", "month", "day"), sep = "-")
+  
+  city_msa_cases <- cases %>% separate(week, into = c("year", "month", "day"), sep = "-") %>% 
+    filter(MSA_Code == code) %>% 
+    group_by(year, month, day, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
+    summarize(Cumulative_Cases = Cases,
+              Est_Population = unique(estpop2020),
+              Population = unique(pop2020)) %>% 
+    ungroup() %>% 
+    group_by(FIPS, Admin2,MSA_Code, MSA_Title, year, month, day) %>% 
+    slice_tail(n = 1) %>% 
+    na.omit() %>% 
+    ungroup() %>% 
+    group_by(year, month, day, MSA_Code, MSA_Title) %>%
+    summarize(Cumulative_Cases = sum(Cumulative_Cases),
+              Est_Population = sum(Est_Population),
+              Population = sum(Population)) 
+  city_msa_deaths <- deaths %>% separate(week, into = c("year", "month", "day"), sep = "-") %>% 
+    filter(MSA_Code == code) %>% 
+    group_by(year, month, day, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
+    summarize(Cumulative_Deaths = Deaths,
+              Est_Population = unique(estpop2020),
+              Population = unique(pop2020)) %>% 
+    ungroup() %>% 
+    group_by(FIPS, Admin2, MSA_Code, MSA_Title, year, month, day) %>% 
+    slice_tail(n = 1) %>% 
+    na.omit() %>% 
+    ungroup() %>% 
+    group_by(year, month, day, MSA_Code, MSA_Title) %>%
+    summarize(Cumulative_Deaths = sum(Cumulative_Deaths),
+              Est_Population = sum(Est_Population),
+              Population = sum(Population)) 
+  city_combined <- left_join(city_msa_cases, city_msa_deaths) %>%
+    ungroup() %>% 
+    # rename(MSA_Code = MSA_Code.x,
+    #        MSA_Title = MSA_Title.x,
+    #        Est_Population = Est_Population.x,
+    #        Population = Population.x) %>% 
+    # select(-c(Est_Population.y, Population.y, MSA_Code.y, MSA_Title.y)) %>% 
+    arrange(year, month, day) %>% 
+    mutate(Weekly_Cases = Cumulative_Cases - lag(Cumulative_Cases, n = 1, default = 0),
+           Weekly_Deaths = Cumulative_Deaths - lag(Cumulative_Deaths, n = 1, default = 0))
+  city_combined <- left_join(city_combined, data) %>% 
+    na.omit()
+  
+  ccf_columns <- city_combined %>% select(starts_with("mean_")) %>% names()
+  years <- as.vector(unique(city_combined$year))
+  
+  full_acf_table <- data.frame()
+  for (year in years) {
+    city_combined1 <- city_combined %>% filter(year == year)
+    for (column in ccf_columns) {
+      
+      ccf_result <- ccf(city_combined1$Weekly_Cases, city_combined1[[column]], plot = FALSE,
+                        lag.max = 40)
+      
+      acf_table <- data.frame(Lag = ccf_result$lag, ACF = ccf_result$acf, year = year) %>% 
+        mutate(Sign = case_when(
+          Lag <= 0 ~ "Lag < 0",
+          TRUE ~ "Lag > 0")) %>%
+        group_by(Sign) %>% 
+        summarise(Max_ACF = max(ACF),
+                  Lag = Lag[which.max(ACF)]) %>%
+        ungroup() %>% 
+        mutate(Variable = column,
+               City = city,
+               State = state,
+               Est_Population = mean(city_combined1$Est_Population),
+               year = year) %>% 
+        select(year, Variable, City, State, Max_ACF, Lag, Sign)
+      #acf_table_year <- rbind(acf_table_year, acf_table)
+      full_acf_table <- rbind(full_acf_table, acf_table)
+    }
+  }
+  
+}
+

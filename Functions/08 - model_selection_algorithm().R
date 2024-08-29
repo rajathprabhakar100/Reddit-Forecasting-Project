@@ -5,7 +5,6 @@ reddit_and_cases <- read_csv("Results/CSV Files/reddit_and_cases_deaths.csv") %>
   select(where(~ !all(is.na(.)))) %>%
   na.omit() %>% 
   rename(mean_function = mean_function.)
-a2 <- reddit_and_cases %>% filter(City == "Atlanta")
 
 model_selection_algorithm <- function(city) {
   filter_city <- reddit_and_cases %>% 
@@ -73,27 +72,6 @@ model_selection_algorithm <- function(city) {
   return(results_by_date)
 }
 
-atlanta <- model_selection_algorithm("Atlanta")
-atlanta <- atlanta %>% imap_dfr(~mutate(.x, week = .y))
-
-
-atlanta <- model_selection_algorithm("Atlanta")
-atlanta <- atlanta %>% imap_dfr(~mutate(.x, week = .y))
-w <- "2023-02-12"
-ggplot(atlanta %>% filter(week == w), aes(x = num_pred, y = MAE))+
-  geom_point()+
-  geom_line()+
-  labs(x = "Number of Predictors",
-       y = "MAE", title = paste("Number of Predictors vs. MAE for", w),
-       subtitle = "40 predictors")
-
-ggplot(atlanta %>% filter(week == w), aes(x = num_pred, y = MAE))+
-  geom_point()+
-  geom_line()+
-  labs(x = "Number of Predictors",
-       y = "Mean Absolute Percentage Error (MAPE)", title = paste("Number of Predictors vs. MAPE for", w), 
-       subtitle = "40 predictors")
-
 
 
 model_selection_pca <- function(city) {
@@ -108,14 +86,13 @@ model_selection_pca <- function(city) {
   
   results_by_date <- list()
   
-  
   for (date in date_vector) {
     message(paste("Calculating", as.character(as_date(date)), "for", city))
     filter_city1 <- filter_city %>% 
       select(-c(MSA_Code, MSA_Title, Est_Population, Population, City)) %>% 
       filter(week <= date - 84)
     
-    prcomp <- prcomp(filter_city1 %>% select(starts_with("mean_")), scale = T)
+    prcomp <- prcomp(filter_city1 %>% select(starts_with("mean_")), scale = TRUE)
     prcomp$rotation <- -1 * prcomp$rotation
     rotation <- data.frame(prcomp$rotation)
     rotation <- rownames_to_column(rotation, var = "Variable")
@@ -143,26 +120,25 @@ model_selection_pca <- function(city) {
     variables <- c(variables, additional_column)
     
     results <- list()
-    
     for (variable in 1:length(variables)) {
-      formula_str <- paste("Weekly_Cases ~", paste(variables[1:variable], collapse = "+"))
-      #print(formula_str)
-      
+      formula_str <- paste("Weekly_Cases ~ Weekly_Cases7 + ", paste(variables[1:variable], collapse = "+"))
       city_training_data <- reddit_and_cases %>%
         filter(City == city) %>%
+        mutate(Weekly_Cases7 = lag(Weekly_Cases, n = 1)) %>% 
         filter(week <= date - 84)
       
-      # Use tryCatch to handle errors
       result <- tryCatch({
         model <- glm(as.formula(formula_str), data = city_training_data, family = "poisson")
         
         insample <- reddit_and_cases %>% 
           filter(City == city) %>% 
+          mutate(Weekly_Cases7 = lag(Weekly_Cases, n = 1)) %>% 
           filter(week <= date - 84) %>% 
           add_pi(df = ., fit = model, names = c("Forecast_Lwr", "Forecast_Upr")) %>% 
           select(week, Weekly_Cases, Forecast_Lwr, pred, Forecast_Upr, everything())
         outsample <- reddit_and_cases %>%
           filter(City == city) %>%
+          mutate(Weekly_Cases7 = lag(Weekly_Cases, n = 1)) %>% 
           filter(week > date - 84 & week <= date) %>%
           add_pi(df = ., fit = model, names = c("Forecast_Lwr", "Forecast_Upr")) %>%
           select(week, Weekly_Cases, Forecast_Lwr, pred, Forecast_Upr, everything())
@@ -171,72 +147,52 @@ model_selection_pca <- function(city) {
                     MAE = mean(abs(Weekly_Cases - pred)),
                     MAPE = (100/nrow(.)) * sum(abs((Weekly_Cases - pred)/Weekly_Cases)))
         
-        # results[[variable]] <- city_prediction_data
-        results[[variable]] <- list(training = city_training_data,
-                                    insample_data = insample,
-                                    outsample_data = outsample,
-                                    summary1 = city_prediction_data_summary)
+        results[[paste0("predictors", variable)]] <- list(
+          training = city_training_data,
+          insample_data = insample,
+          outsample_data = outsample,
+          summary1 = city_prediction_data_summary
+        )
         TRUE  # Indicate success
-      }, error = function(e) {
+      },
+      error = function(e) {
         message("Error in model fitting: ", e$message)
         FALSE  # Indicate failure
       })
       
-      # If an error occurred, break the inner loop
       if (!result) {
         break
       }
     }
     
-    #result_df <- bind_rows(results)
     results_by_date[[as.character(as_date(date))]] <- results
-    
-    summaries_and_predictions <- list()
-    for (date in names(results_by_date)) {
-      results_for_date <- results_by_date[[date]]
-      summary_list <- lapply(results_for_date, function(result) result$summary1)
-      summaries <- bind_rows(summary_list)
-      
-      full_data <- setNames(
-        results_for_date,
-        paste0("predictors", seq_along(results_for_date))
-      )
-      summaries_and_predictions[[date]] <- list(
-        summary = summaries,
-        full_data = full_data
-      )
-    }
   }
-  return(summaries_and_predictions)
+  return(results_by_date)
 }
-atlanta <- model_selection_pca("Atlanta")
 
-save(atlanta, file = "Environments/atlanta_pca.RData")
-load("Environments/atlanta_pca.RData")
+atlanta1 <- model_selection_pca("Atlanta")
 
-     all_summaries <- list()  
-for (date in names(summaries_and_predictions)) {
-  # Extract the summary data frame for the current date
-  summary_for_date <- summaries_and_predictions[[date]]$summary
-  
-  # Add a new column with the current date
-  summary_for_date$week <- date
-  
-  # Append the modified summary data frame to the list
-  all_summaries[[date]] <- summary_for_date
+
+all_summaries <- list()  
+for (date in names(atlanta1)) {
+  date_summary <- list()
+  for (predictor in names(atlanta1[[date]])) {
+    summary_for_predictor <- atlanta1[[date]][[predictor]]$summary1
+    
+    # Add a new column with the current date
+    summary_for_predictor$week <- date
+    
+    # Append the modified summary data frame to the list
+    date_summary[[predictor]] <- summary_for_predictor
+  }
+  summaries_for_date <- bind_rows(date_summary)
+  all_summaries[[date]] <- summaries_for_date
+
 }
-return(all_summaries)
 
 
 
-
-# Combine all the summaries into one data frame
-atlanta1 <- bind_rows(all_summaries) %>% select(num_pred, week, everything())
-atlanta2 <- atlanta$`2022-08-21`$summary
-atlanta3 <- atlanta$`2022-08-21`$full_data$predictors84$insample_data
-atlanta4 <- atlanta$`2022-08-21`$full_data$predictors1$outsample_data
-
-ggplot(atlanta3, aes(x = week))+
+ggplot(atlanta4, aes(x = week))+
   geom_point(aes(y = Weekly_Cases))+
   geom_line(aes(y = pred))+
   geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
@@ -245,7 +201,7 @@ ggplot(atlanta3, aes(x = week))+
        title = "Expected vs Actual Cases Using 84 Predictors",
        subtitle = "2022-08-21 In-sample fit")
 
-ggplot(atlanta4, aes(x = week))+
+ggplot(atlanta5, aes(x = week))+
   geom_point(aes(y = Weekly_Cases))+
   geom_line(aes(y = pred))+
   geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+

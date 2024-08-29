@@ -1,4 +1,3 @@
-library(tidyverse)
 library(here)
 source(here("Functions/04 - ccf_city_case_files().R"))
 
@@ -25,6 +24,7 @@ info <- bind_cols(Cities, MSA_Codes) %>%
   rename(City = city, 
          State = state) %>% 
   slice(-16)
+
 result_list <- list()
 for (i in 1:nrow(info)) {
   row <- info[i, ]
@@ -47,3 +47,29 @@ result_table[result_table$Variable == "mean_function.", "Variable"] <- "mean_fun
 fwrite(result_table, paste("Results/CSV Files/combined_data.csv"))
 
 combo <- fread("Results/CSV Files/combined_data.csv")
+
+result_list1 <- list()
+for (i in 1:nrow(info)) {
+  
+  row <- info[i, ]
+  City <- row$City
+  State <- row$State
+  msa_code <- row$msa_code
+  filename <- row$filename
+  
+  message(paste("Processing", City))
+  # Call your function for each row
+  acf_result <- ccf_by_year("Source Data/Weekly Data", filename = as.character(filename),
+                                    code = msa_code, city = City, state = State)
+  
+  # Store the result in the list
+  result_list1[[i]] <- acf_result
+  message(paste("Finished processing", City)) 
+}
+result_table1 <- do.call(rbind, result_list1)
+
+
+fwrite(result_table1, "Results/CSV Files/combined_data_year.csv")
+
+
+acf_result <- ccf_by_year("Source Data/Weekly Data", filename = "atlanta_weekly.csv", code = "C1206", city = "Atlanta", state = "Georgia")
