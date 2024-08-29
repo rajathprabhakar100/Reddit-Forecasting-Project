@@ -1057,3 +1057,188 @@ for (city in cities) {
 }
 ```
 
+```{r}
+source(here("Functions/08 - model_selection_algorithm().R"))
+```
+
+```{r}
+atlanta <- model_selection_algorithm("Atlanta")
+atlanta <- atlanta %>% imap_dfr(~mutate(.x, week = .y))
+
+w <- "2023-02-12"
+ggplot(atlanta %>% filter(week == w), aes(x = num_pred, y = MAE))+
+  geom_point()+
+  geom_line()+
+  labs(x = "Number of Predictors",
+       y = "MAE", title = paste("Number of Predictors vs. MAE for", w),
+       subtitle = "40 predictors")
+
+ggplot(atlanta %>% filter(week == w), aes(x = num_pred, y = MAE))+
+  geom_point()+
+  geom_line()+
+  labs(x = "Number of Predictors",
+       y = "Mean Absolute Percentage Error (MAPE)", title = paste("Number of Predictors vs. MAPE for", w), 
+       subtitle = "40 predictors")
+
+
+```
+
+```{r}
+atlanta1 <- model_selection_pca("Atlanta")
+```
+
+```{r}
+#save(atlanta1, file = "Environments/atlanta_pca_ar.RData")
+load("Environments/atlanta_pca.RData")
+```
+
+```{r}
+load("Environments/atlanta_pca_ar.RData")
+```
+
+```{r}
+all_summaries <- list()  
+for (date in names(atlanta1)) {
+  date_summary <- list()
+  for (predictor in names(atlanta1[[date]])) {
+    summary_for_predictor <- atlanta1[[date]][[predictor]]$summary1
+    
+    # Add a new column with the current date
+    summary_for_predictor$week <- date
+    
+    # Append the modified summary data frame to the list
+    date_summary[[predictor]] <- summary_for_predictor
+  }
+  summaries_for_date <- bind_rows(date_summary)
+  all_summaries[[date]] <- summaries_for_date
+
+}
+```
+
+```{r}
+atlanta2 <- bind_rows(all_summaries) %>% select(num_pred, week, everything())
+atlanta3 <- atlanta1$`2021-04-25`$predictors1$insample_data
+atlanta4 <- atlanta1$`2021-04-25`$predictors1$outsample_data
+```
+
+```{r}
+ggplot(atlanta3, aes(x = week))+
+  geom_point(aes(y = Weekly_Cases))+
+  geom_line(aes(y = pred))+
+  geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+  labs(x = "Week",
+       y = "Weekly Cases",
+       title = "Expected vs Actual Cases Using 84 Predictors",
+       subtitle = "2022-08-21 In-sample fit")
+
+ggplot(atlanta4, aes(x = week))+
+  geom_point(aes(y = Weekly_Cases))+
+  geom_line(aes(y = pred))+
+  geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+  labs(x = "Week",
+       y = "Weekly Cases",
+       title = "Expected vs Actual Cases Using 1 Predictor",
+       subtitle = "2022-08-21 out-sample fit")
+
+```
+```{r}
+library(cowplot)
+```
+
+```{r}
+library(patchwork)
+atlanta_date <- atlanta1$`2020-10-25`
+for (date in names(atlanta1)) {
+  date_name <- atlanta1[[date]]
+  
+  for (predictor_name in names(atlanta1[[date]])) {
+    num_pred <- gsub("predictors", "", predictor_name)
+    predictor <- atlanta1[[date]][[predictor_name]]
+    in_sample <- predictor$insample_data
+    out_sample <- predictor$outsample_data
+
+    p1 <- ggplot(in_sample, aes(x = week))+
+      geom_point(aes(y = Weekly_Cases))+
+      geom_line(aes(y = pred))+
+      geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+      labs(x = "Week", 
+           y = "Cases",
+           title = "In-Sample Fit")
+    p2 <- ggplot(out_sample, aes(x = week))+
+      geom_point(aes(y = Weekly_Cases))+
+      geom_line(aes(y = pred))+
+      geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+      labs(x = "Week", 
+           y = "Cases", 
+           title = "Out of Sample Fit")
+  
+    final <- p1 + p2 +
+      plot_layout(ncol = 2)+
+      plot_annotation(title = paste(as.character(num_pred), " Predictors"), 
+                      subtitle = as.character(date_name))
+    # Draw the grid inside the canvas
+  print(final)
+
+
+  }
+
+  
+}
+```
+
+```{r}
+for (predictor_name in names(atlanta_date)) {
+  num_pred <- gsub("predictors", "", predictor_name)
+  predictor <- atlanta_date[[predictor_name]]
+  in_sample <- predictor$insample_data
+  out_sample <- predictor$outsample_data
+
+  p1 <- ggplot(in_sample, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases))+
+    geom_line(aes(y = pred))+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    labs(x = "Week", 
+         y = "Cases",
+         title = "In-Sample Fit")
+  p2 <- ggplot(out_sample, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases))+
+    geom_line(aes(y = pred))+
+    geom_ribbon(aes(ymin = Forecast_Lwr, ymax = Forecast_Upr), fill = "yellow", alpha = 0.2)+
+    labs(x = "Week", 
+         y = "Cases", 
+         title = "Out of Sample Fit")
+  
+  final <- p1 + p2 +
+    plot_layout(ncol = 2)+
+    plot_annotation(title = paste(as.character(num_pred), " Predictors"))
+    # Draw the grid inside the canvas
+  print(final)
+
+
+}
+```
+
+
+```{r}
+file_list <- list.files("Source Data/Weekly Data", full.names = TRUE)
+for (file in file_list) {
+  filename <- file.path(file)
+  name <- read_csv(filename)
+  city <- gsub("Source Data/Weekly Data/|_weekly\\.csv", "", filename)
+  p <- ggplot(name, aes(x = week, y = mean_emo_anx))+
+    geom_line()+
+    labs(x = "Week", 
+         y = "Anxiety", 
+         title = paste("Time Series of Anxiety over Time for ", city))
+  ggsave(paste0("Weekly Reports/2024_08_20/", city, ".png"), p)
+
+
+}
+```
+
+```{r}
+atlanta <- read_csv("Source Data/Weekly Data/atlanta_weekly.csv")
+ggplot(atlanta, aes(week, mean_emo_anx))+
+  geom_line()
+```
+
