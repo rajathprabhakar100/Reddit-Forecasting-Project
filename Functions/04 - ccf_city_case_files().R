@@ -471,23 +471,18 @@ ccf_by_year <- function(folder_path, filename, explanatory = NULL, code = NULL, 
               Population = sum(Population)) 
   city_combined <- left_join(city_msa_cases, city_msa_deaths) %>%
     ungroup() %>% 
-    # rename(MSA_Code = MSA_Code.x,
-    #        MSA_Title = MSA_Title.x,
-    #        Est_Population = Est_Population.x,
-    #        Population = Population.x) %>% 
-    # select(-c(Est_Population.y, Population.y, MSA_Code.y, MSA_Title.y)) %>% 
     arrange(year, month, day) %>% 
     mutate(Weekly_Cases = Cumulative_Cases - lag(Cumulative_Cases, n = 1, default = 0),
-           Weekly_Deaths = Cumulative_Deaths - lag(Cumulative_Deaths, n = 1, default = 0))
-  city_combined <- left_join(city_combined, data) %>% 
+           Weekly_Deaths = Cumulative_Deaths - lag(Cumulative_Deaths, n = 1, default = 0)) %>% 
+    left_join(data) %>% 
     na.omit()
   
   ccf_columns <- city_combined %>% select(starts_with("mean_")) %>% names()
   years <- as.vector(unique(city_combined$year))
   
   full_acf_table <- data.frame()
-  for (year in years) {
-    city_combined1 <- city_combined %>% filter(year == year)
+  for (y in years) {
+    city_combined1 <- city_combined %>% filter(year == y)
     for (column in ccf_columns) {
       
       ccf_result <- ccf(city_combined1$Weekly_Cases, city_combined1[[column]], plot = FALSE,
