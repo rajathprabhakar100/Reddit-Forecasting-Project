@@ -72,4 +72,3 @@ result_table1 <- do.call(rbind, result_list1)
 fwrite(result_table1, "Results/CSV Files/combined_data_year.csv")
 
 
-acf_result <- ccf_by_year("Source Data/Weekly Data", filename = "atlanta_weekly.csv", code = "C1206", city = "Atlanta", state = "Georgia")
