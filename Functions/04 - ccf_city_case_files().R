@@ -453,7 +453,8 @@ ccf_by_year <- function(folder_path, filename, explanatory = NULL, code = NULL, 
     group_by(year, month, day, MSA_Code, MSA_Title) %>%
     summarize(Cumulative_Cases = sum(Cumulative_Cases),
               Est_Population = sum(Est_Population),
-              Population = sum(Population)) 
+              Population = sum(Population)) %>% 
+    ungroup()
   city_msa_deaths <- deaths %>% separate(week, into = c("year", "month", "day"), sep = "-") %>% 
     filter(MSA_Code == code) %>% 
     group_by(year, month, day, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
@@ -468,7 +469,8 @@ ccf_by_year <- function(folder_path, filename, explanatory = NULL, code = NULL, 
     group_by(year, month, day, MSA_Code, MSA_Title) %>%
     summarize(Cumulative_Deaths = sum(Cumulative_Deaths),
               Est_Population = sum(Est_Population),
-              Population = sum(Population)) 
+              Population = sum(Population)) %>% 
+    ungroup()
   city_combined <- left_join(city_msa_cases, city_msa_deaths) %>%
     ungroup() %>% 
     arrange(year, month, day) %>% 
