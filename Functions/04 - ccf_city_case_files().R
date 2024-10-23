@@ -439,8 +439,9 @@ ccf_by_year <- function(folder_path, filename, explanatory = NULL, code = NULL, 
   data <- fread(here(file_path)) %>% 
     separate(week, into = c("year", "month", "day"), sep = "-")
   
-  city_msa_cases <- cases %>% separate(week, into = c("year", "month", "day"), sep = "-") %>% 
+  city_msa_cases <- cases %>%  
     filter(MSA_Code == code) %>% 
+    separate(week, into = c("year", "month", "day"), sep = "-") %>%
     group_by(year, month, day, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
     summarize(Cumulative_Cases = Cases,
               Est_Population = unique(estpop2020),
@@ -455,8 +456,9 @@ ccf_by_year <- function(folder_path, filename, explanatory = NULL, code = NULL, 
               Est_Population = sum(Est_Population),
               Population = sum(Population)) %>% 
     ungroup()
-  city_msa_deaths <- deaths %>% separate(week, into = c("year", "month", "day"), sep = "-") %>% 
-    filter(MSA_Code == code) %>% 
+  city_msa_deaths <- deaths %>% 
+    filter(MSA_Code == code) %>%
+    separate(week, into = c("year", "month", "day"), sep = "-") %>% 
     group_by(year, month, day, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
     summarize(Cumulative_Deaths = Deaths,
               Est_Population = unique(estpop2020),
@@ -489,25 +491,26 @@ ccf_by_year <- function(folder_path, filename, explanatory = NULL, code = NULL, 
       
       ccf_result <- ccf(city_combined1$Weekly_Cases, city_combined1[[column]], plot = FALSE,
                         lag.max = 40)
+      #print(str(ccf_result))
       
-      acf_table <- data.frame(Lag = ccf_result$lag, ACF = ccf_result$acf, year = year) %>% 
+      acf_table <- data.frame(Lag = ccf_result$lag, ACF = ccf_result$acf, year = y) %>%
         mutate(Sign = case_when(
           Lag <= 0 ~ "Lag < 0",
           TRUE ~ "Lag > 0")) %>%
-        group_by(Sign) %>% 
+        group_by(Sign) %>%
         summarise(Max_ACF = max(ACF),
                   Lag = Lag[which.max(ACF)]) %>%
-        ungroup() %>% 
+        ungroup() %>%
         mutate(Variable = column,
                City = city,
                State = state,
                Est_Population = mean(city_combined1$Est_Population),
-               year = year) %>% 
+               year = y) %>%
         select(year, Variable, City, State, Max_ACF, Lag, Sign)
       #acf_table_year <- rbind(acf_table_year, acf_table)
       full_acf_table <- rbind(full_acf_table, acf_table)
     }
   }
-  
+  return(full_acf_table)
 }
 

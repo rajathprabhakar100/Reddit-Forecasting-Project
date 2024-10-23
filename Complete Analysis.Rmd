@@ -738,3 +738,255 @@ for (city in cities) {
 }
 ```
 
+```{r}
+atlanta_forecast <- list()
+for (date in unique(reddit_and_cases %>% filter(week >= "2020-01-26") %>% pull(week))) {
+  date <- as_date(date)
+  #print(date)
+  forecast <- get_0week_forecasts(cutoff_date = date, city = "Atlanta")
+  atlanta_forecast[[length(atlanta_forecast) + 1]] <- forecast
+}
+atlanta_forecast <- do.call(rbind, atlanta_forecast) %>% 
+  rename(Lo_95 = `Lo 95`,
+         Lo_80 = `Lo 80`,
+         Point_Forecast = `Point Forecast`,
+         Hi_80 = `Hi 80`,
+         Hi_95 = `Hi 95`)
+
+ggplot(atlanta_forecast, aes(x = week))+
+  geom_point(aes(y = Weekly_Cases))+
+  geom_line(aes(y = Point_Forecast))+
+  geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95), fill = "yellow", alpha = 0.3)+
+  geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80), fill = "blue", alpha = 0.5)+
+  labs(x = "Week",
+       y = "Weekly Cases",
+       title = "Nowcast for Atlanta",
+       subtitle = "95% Confidence")
+ggplot(atlanta_forecast, aes(x = week))+
+  geom_point(aes(y = Weekly_Cases))+
+  geom_line(aes(y = Point_Forecast))+
+  geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80), fill = "blue", alpha = 0.3)+
+  labs(x = "Week",
+       y = "Weekly Cases",
+       title = "Nowcast for Atlanta",
+       subtitle = "80% Confidence")
+
+```
+
+```{r}
+date <- "2020-01-26"
+get_1week_forecasts(cutoff_date = date, city = "Atlanta")
+```
+
+```{r}
+atlanta_forecast7 <- list()
+for (date in unique(reddit_and_cases %>% filter(week > "2020-01-26" & week < "2023-03-05") %>% pull(week))) {
+  date <- as_date(date)
+  #print(date)
+  forecast <- get_1week_forecasts(cutoff_date = date, city = "Atlanta")
+  if (!is.null(forecast)) {
+    atlanta_forecast7[[length(atlanta_forecast7) + 1]] <- forecast
+  }
+  
+  else {
+    warning("No forecast generated for date: ", date)
+  }
+  #atlanta_forecast7[[length(atlanta_forecast7) + 1]] <- forecast
+}
+atlanta_forecast7 <- do.call(rbind, atlanta_forecast7) %>% 
+  rename(Lo_95 = `Lo 95`,
+         Lo_80 = `Lo 80`,
+         Point_Forecast = `Point Forecast`,
+         Hi_80 = `Hi 80`,
+         Hi_95 = `Hi 95`)
+ggplot(atlanta_forecast7, aes(x = week))+
+  geom_point(aes(y = Weekly_Cases))+
+  geom_line(aes(y = Point_Forecast))+
+  geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95), fill = "yellow", alpha = 0.3)+
+  geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80), fill = "blue", alpha = 0.5)+
+  labs(x = "Week",
+       y = "Weekly Cases",
+       title = "7 Day Forecast for Atlanta")
+
+```
+
+```{r}
+library(cowplot)
+for (city in unique(reddit_and_cases %>% filter(City != "New Orleans") %>% pull(City))) {
+  City <- reddit_and_cases %>% filter(City == city)
+  city_forecast0 <- list()
+  city_forecast7 <- list()
+  
+  message(paste("Forecasting ", city))
+  
+  for (date in City %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_0week_forecasts(cutoff_date = date, city = city)
+    city_forecast0[[length(city_forecast0) + 1]] <- forecast
+    message(paste("Finished nowcast for", date, "in", city))
+  }
+  
+  forecast0 <- do.call(rbind, city_forecast0) %>% 
+    rename(Lo_95 = `Lo 95`,
+           Lo_80 = `Lo 80`,
+           Point_Forecast = `Point Forecast`,
+           Hi_80 = `Hi 80`,
+           Hi_95 = `Hi 95`)
+
+  for (date in City %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_1week_forecasts(cutoff_date = date, city = city)
+    city_forecast7[[length(city_forecast7) + 1]] <- forecast
+    message(paste("Finished nowcast for", date, "in", city))
+  }
+  
+  forecast7 <- do.call(rbind, city_forecast7) %>% 
+    rename(Lo_95 = `Lo 95`,
+           Lo_80 = `Lo 80`,
+           Point_Forecast = `Point Forecast`,
+           Hi_80 = `Hi 80`,
+           Hi_95 = `Hi 95`)
+  
+  city_graph0 <- ggplot(forecast0, aes(x = week))+
+  geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+  geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+  geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+  geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+  scale_fill_manual(values = c("95% Confidence" = "yellow",
+                               "80% Confidence" = "blue"))+
+  scale_color_manual(values = c("Forecast" = "red"))+
+  scale_shape_manual(values = c("Weekly Cases" = 16))+
+  labs(x = "Week",
+       y = "Weekly Cases",
+       fill = "Confidence",
+       color = "Forecast",
+       shape = "True Cases",
+       title = paste("Nowcast for", city))+
+  theme(legend.position = "none")
+#print(city_graph0)
+city_graph7 <- ggplot(forecast7, aes(x = week))+
+  geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+  geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+  geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+  geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+  scale_fill_manual(values = c("95% Confidence" = "yellow",
+                               "80% Confidence" = "blue"))+
+  scale_color_manual(values = c("Forecast" = "red"))+
+  scale_shape_manual(values = c("Weekly Cases" = 16))+
+  labs(x = "Week",
+       y = "Weekly Cases",
+       fill = "Confidence",
+       color = "Forecast",
+       shape = "True Cases",
+       title = paste("7 Day Forecast for", city))+
+  theme(legend.position = "none")
+
+legend <- get_legend(
+  ggplot(forecast7, aes(x = week)) +
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases")) +
+    geom_line(aes(y = Point_Forecast, color = "Forecast")) +
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3) +
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5) +
+    scale_fill_manual(values = c("95% Confidence" = "yellow", "80% Confidence" = "blue")) +
+    scale_color_manual(values = c("Forecast" = "red")) +
+    scale_shape_manual(values = c("Weekly Cases" = 16)) +
+    labs(fill = "Confidence", color = "Forecast", shape = "True Cases") +
+    theme(legend.position = "right")
+)
+
+city_grid <- plot_grid(plot_grid(city_graph0, city_graph7), legend, rel_widths = c(3, 0.4))
+
+print(city_grid)
+}
+```
+
+```{r}
+city_vector <- unique(reddit_and_cases %>% filter(City != "New Orleans") %>% pull(City))
+city_vector
+```
+```{r}
+city <- "Washington DC"
+City <- reddit_and_cases %>% filter(City == city)
+city_forecast0 <- list()
+city_forecast7 <- list()
+for (date in City %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+  date <- as_date(date)
+  forecast <- get_0week_forecasts(cutoff_date = date, city = city)
+  city_forecast0[[length(city_forecast0) + 1]] <- forecast
+  message(paste("Finished nowcast for", date))
+}
+for (date in City %>% filter(week > "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+  date <- as_date(date)
+  forecast <- get_1week_forecasts(cutoff_date = date, city = city)
+  city_forecast7[[length(city_forecast7) + 1]] <- forecast
+  message(paste("Finished forecast for", date))
+}
+forecast0 <- do.call(rbind, city_forecast0) %>% 
+  rename(Lo_95 = `Lo 95`,
+         Lo_80 = `Lo 80`,
+         Point_Forecast = `Point Forecast`,
+         Hi_80 = `Hi 80`,
+         Hi_95 = `Hi 95`)
+
+
+forecast7 <- do.call(rbind, city_forecast7) %>% 
+  rename(Lo_95 = `Lo 95`,
+         Lo_80 = `Lo 80`,
+         Point_Forecast = `Point Forecast`,
+         Hi_80 = `Hi 80`,
+         Hi_95 = `Hi 95`)
+city_graph0 <- ggplot(forecast0, aes(x = week))+
+  geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+  geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+  geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+  geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+  scale_fill_manual(values = c("95% Confidence" = "yellow",
+                               "80% Confidence" = "blue"))+
+  scale_color_manual(values = c("Forecast" = "red"))+
+  scale_shape_manual(values = c("Weekly Cases" = 16))+
+  labs(x = "Week",
+       y = "Weekly Cases",
+       fill = "Confidence",
+       color = "Forecast",
+       shape = "True Cases",
+       title = paste("Nowcast for", city))+
+  theme(legend.position = "none")
+#print(city_graph0)
+city_graph7 <- ggplot(forecast7, aes(x = week))+
+  geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+  geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+  geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+  geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+  scale_fill_manual(values = c("95% Confidence" = "yellow",
+                               "80% Confidence" = "blue"))+
+  scale_color_manual(values = c("Forecast" = "red"))+
+  scale_shape_manual(values = c("Weekly Cases" = 16))+
+  labs(x = "Week",
+       y = "Weekly Cases",
+       fill = "Confidence",
+       color = "Forecast",
+       shape = "True Cases",
+       title = paste("7 Day Forecast for", city))+
+  theme(legend.position = "none")
+
+legend <- get_legend(
+  ggplot(forecast7, aes(x = week)) +
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases")) +
+    geom_line(aes(y = Point_Forecast, color = "Forecast")) +
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3) +
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5) +
+    scale_fill_manual(values = c("95% Confidence" = "yellow", "80% Confidence" = "blue")) +
+    scale_color_manual(values = c("Forecast" = "red")) +
+    scale_shape_manual(values = c("Weekly Cases" = 16)) +
+    labs(fill = "Confidence", color = "Forecast", shape = "True Cases") +
+    theme(legend.position = "right")  # Keep the legend for extraction
+)
+
+#print(city_graph7)
+city_grid <- plot_grid(plot_grid(city_graph0, city_graph7), legend, rel_widths = c(3, 0.4))
+
+print(city_grid)
+ggsave(paste0("Weekly Reports/2024_10_15/", city, ".png"), city_grid, width = 12, height = 8)
+
+```
+

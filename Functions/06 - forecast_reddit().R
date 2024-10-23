@@ -4,6 +4,7 @@ library(zoo)
 library(data.table)
 library(conflicted)
 library(ciTools)
+library(forecast)
 reddit_and_cases <- read_csv(here("Results/CSV Files/reddit_and_cases_deaths.csv"))
 
 conflict_prefer("select", "dplyr")
@@ -433,5 +434,95 @@ forecast_reddit_poisson_8 <- function(date = NULL, city, weeks = "3", csv=F) {
     select(week, MSA_Code, MSA_Title, City, Forecast_Lwr, Forecast, Forecast_Upr, everything())
   return(city_projection_data)
   
+  
+}
+
+get_0week_forecasts <- function(cutoff_date, city) {
+  data_for_fitting <- reddit_and_cases %>% 
+    filter(City == city) %>% 
+    filter(week < cutoff_date) %>% 
+    select(week, mean_COVID_Related, Weekly_Cases)
+  data_for_predicting <- reddit_and_cases %>% 
+    filter(City == city) %>% 
+    filter(week == cutoff_date) #%>% 
+    #select(week, mean_COVID_Related, Weekly_Cases)
+  if (all(data_for_fitting$Weekly_Cases == 0)) {
+    # Directly return zero forecast if all cases are zero
+    fcast <- data_for_predicting %>%
+      mutate(`Point Forecast` = 0, `Lo 95` = 0, `Lo 80` = 0, `Hi 80` = 0, `Hi 95` = 0)
+  } 
+  
+  else {
+    # Otherwise, perform the ARIMA forecast
+    full_fit <- suppressWarnings(auto.arima(data_for_fitting$Weekly_Cases,
+                                            xreg = as.matrix(data_for_fitting$mean_COVID_Related)))
+    fcast <- suppressWarnings(forecast(full_fit,
+                                          h = nrow(data_for_predicting),
+                                          xreg = as.matrix(data_for_predicting$mean_COVID_Related))) %>%
+      as_tibble() %>%
+      bind_cols(data_for_predicting) %>% 
+      mutate_at(vars(`Point Forecast`:`Hi 95`), function(x) {ifelse(x < 0, 0, x)}) %>% 
+      select(week, MSA_Code, MSA_Title, `Lo 95`, `Lo 80`, `Point Forecast`, `Hi 80`, `Hi 95`, Weekly_Cases, everything())
+    }
+
+  # full_fit <- suppressWarnings(auto.arima(data_for_fitting$Weekly_Cases,
+  #                        xreg = as.matrix(data_for_fitting$mean_COVID_Related)))
+  # fcast <- suppressWarnings(forecast(full_fit,
+  #                   h = nrow(data_for_predicting),
+  #                   xreg = as.matrix(data_for_predicting$mean_COVID_Related))) %>%
+  #   as_tibble() %>%
+  #   bind_cols(data_for_predicting) %>% 
+  #   mutate_at(vars(`Point Forecast`:`Hi 95`), function(x) {ifelse(x < 0, 0, x)}) %>% 
+  #   select(week, MSA_Code, MSA_Title, `Lo 95`, `Lo 80`, `Point Forecast`, `Hi 80`, `Hi 95`, Weekly_Cases, everything())
+  #   
+  return(fcast)
+  
+
+  
+
+
+}
+
+get_1week_forecasts <- function(cutoff_date, city) {
+  data_for_fitting <- reddit_and_cases %>% 
+    filter(City == city) %>% 
+    filter(week < cutoff_date) #%>% 
+    # select(week, mean_COVID_Related, Weekly_Cases)
+  data_for_predicting <- reddit_and_cases %>% 
+    filter(City == city) %>% 
+    filter(week == ymd(cutoff_date) + days(7)) #%>% 
+  #select(week, mean_COVID_Related, Weekly_Cases)
+  
+  if (nrow(data_for_fitting) <= 1) {
+    warning("Insufficient data available for fitting at cutoff date: ", cutoff_date)
+    return(NULL)
+  }
+  
+  if (!is.numeric(data_for_fitting$Weekly_Cases) || all(is.na(data_for_fitting$Weekly_Cases))) {
+    stop("Weekly_Cases is either non-numeric or contains only NAs for cutoff date: ", cutoff_date)
+  }
+  
+  if (ncol(as.matrix(data_for_fitting$mean_COVID_Related)) == 0) {
+    stop("mean_COVID_Related is empty for cutoff date: ", cutoff_date)
+  }
+  
+  suppressWarnings(full_fit <- auto.arima(ts(data_for_fitting$Weekly_Cases, frequency = 52),
+                         xreg = as.matrix(data_for_fitting$mean_COVID_Related)))
+  
+  if (nrow(data_for_predicting) == 0 || ncol(as.matrix(data_for_predicting$mean_COVID_Related)) == 0) {
+    warning("No data available for prediction at cutoff date: ", cutoff_date)
+    return(NULL)
+  }
+  
+  fcast <- suppressWarnings(forecast(full_fit,
+                    h = nrow(data_for_predicting),
+                    xreg = as.matrix(data_for_predicting$mean_COVID_Related))) %>%
+    as_tibble() %>%
+    bind_cols(data_for_predicting) %>% 
+    mutate_at(vars(`Point Forecast`:`Hi 95`), function(x) {ifelse(x < 0, 0, x)}) %>% 
+    select(week, MSA_Code, MSA_Title, `Lo 95`, `Lo 80`, `Point Forecast`, `Hi 80`, `Hi 95`, Weekly_Cases, everything())
+  
+  return(fcast)
+  #print(data_for_predicting)
   
 }
