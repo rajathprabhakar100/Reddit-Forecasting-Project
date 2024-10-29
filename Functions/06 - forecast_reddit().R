@@ -438,14 +438,16 @@ forecast_reddit_poisson_8 <- function(date = NULL, city, weeks = "3", csv=F) {
 }
 
 get_0week_forecasts <- function(cutoff_date, city) {
+  
+  cutoff_date <- as.Date(cutoff_date)
+  
   data_for_fitting <- reddit_and_cases %>% 
     filter(City == city) %>% 
     filter(week < cutoff_date) %>% 
     select(week, mean_COVID_Related, Weekly_Cases)
   data_for_predicting <- reddit_and_cases %>% 
     filter(City == city) %>% 
-    filter(week == cutoff_date) #%>% 
-    #select(week, mean_COVID_Related, Weekly_Cases)
+    filter(week == cutoff_date) 
   if (all(data_for_fitting$Weekly_Cases == 0)) {
     # Directly return zero forecast if all cases are zero
     fcast <- data_for_predicting %>%
@@ -456,6 +458,21 @@ get_0week_forecasts <- function(cutoff_date, city) {
     # Otherwise, perform the ARIMA forecast
     full_fit <- suppressWarnings(auto.arima(data_for_fitting$Weekly_Cases,
                                             xreg = as.matrix(data_for_fitting$mean_COVID_Related)))
+    model_coeffs <- coef(full_fit)
+    
+    # Initialize a row with the cutoff date and xreg (external regressor) coefficient
+    row <- data.frame(date = format(cutoff_date, "%Y-%m-%d"),  # Format date here
+                      xreg = ifelse("xreg" %in% names(model_coeffs), model_coeffs["xreg"], NA))
+    
+    # Loop through coefficients and dynamically add AR and MA terms to the row
+    for (name in names(model_coeffs)) {
+      if (grepl("ar", name) || grepl("ma", name)) {
+        row[[name]] <- model_coeffs[name]
+      }
+    }
+    
+    row <- row %>% select(date, xreg, starts_with("ar"), starts_with("ma"))
+    
     fcast <- suppressWarnings(forecast(full_fit,
                                           h = nrow(data_for_predicting),
                                           xreg = as.matrix(data_for_predicting$mean_COVID_Related))) %>%
@@ -463,24 +480,11 @@ get_0week_forecasts <- function(cutoff_date, city) {
       bind_cols(data_for_predicting) %>% 
       mutate_at(vars(`Point Forecast`:`Hi 95`), function(x) {ifelse(x < 0, 0, x)}) %>% 
       select(week, MSA_Code, MSA_Title, `Lo 95`, `Lo 80`, `Point Forecast`, `Hi 80`, `Hi 95`, Weekly_Cases, everything())
-    }
+  }
+  results <- list(forecast = fcast,
+                  model = row)
 
-  # full_fit <- suppressWarnings(auto.arima(data_for_fitting$Weekly_Cases,
-  #                        xreg = as.matrix(data_for_fitting$mean_COVID_Related)))
-  # fcast <- suppressWarnings(forecast(full_fit,
-  #                   h = nrow(data_for_predicting),
-  #                   xreg = as.matrix(data_for_predicting$mean_COVID_Related))) %>%
-  #   as_tibble() %>%
-  #   bind_cols(data_for_predicting) %>% 
-  #   mutate_at(vars(`Point Forecast`:`Hi 95`), function(x) {ifelse(x < 0, 0, x)}) %>% 
-  #   select(week, MSA_Code, MSA_Title, `Lo 95`, `Lo 80`, `Point Forecast`, `Hi 80`, `Hi 95`, Weekly_Cases, everything())
-  #   
-  return(fcast)
-  
-
-  
-
-
+  return(results)
 }
 
 get_1week_forecasts <- function(cutoff_date, city) {
@@ -514,6 +518,21 @@ get_1week_forecasts <- function(cutoff_date, city) {
     return(NULL)
   }
   
+  model_coeffs <- coef(full_fit)
+  
+  # Initialize a row with the cutoff date and xreg (external regressor) coefficient
+  row <- data.frame(date = format(cutoff_date, "%Y-%m-%d"),  # Format date here
+                    xreg = ifelse("xreg" %in% names(model_coeffs), model_coeffs["xreg"], NA))
+  
+  # Loop through coefficients and dynamically add AR and MA terms to the row
+  for (name in names(model_coeffs)) {
+    if (grepl("ar", name) || grepl("ma", name)) {
+      row[[name]] <- model_coeffs[name]
+    }
+  }
+  
+  row <- row %>% select(date, xreg, starts_with("ar"), starts_with("ma"))
+  
   fcast <- suppressWarnings(forecast(full_fit,
                     h = nrow(data_for_predicting),
                     xreg = as.matrix(data_for_predicting$mean_COVID_Related))) %>%
@@ -522,7 +541,9 @@ get_1week_forecasts <- function(cutoff_date, city) {
     mutate_at(vars(`Point Forecast`:`Hi 95`), function(x) {ifelse(x < 0, 0, x)}) %>% 
     select(week, MSA_Code, MSA_Title, `Lo 95`, `Lo 80`, `Point Forecast`, `Hi 80`, `Hi 95`, Weekly_Cases, everything())
   
-  return(fcast)
+  results <- list(forecast = fcast,
+                  model = row)
+  return(results)
   #print(data_for_predicting)
   
 }
