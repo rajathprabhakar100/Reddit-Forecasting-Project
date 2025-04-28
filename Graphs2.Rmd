@@ -1,0 +1,856 @@
+---
+title: "Untitled"
+author: "Rajath Prabhakar"
+date: "2024-08-22"
+output:
+  word_document: default
+  html_document: default
+---
+```{r}
+library(tidyverse)
+library(cowplot)
+library(data.table)
+```
+
+```{r}
+combined_data_year <- read_csv("Results/CSV Files/combined_data_year.csv")
+rank_avg_year <- read_csv("Results/CSV Files/AverageCityRankYear.csv")
+table2 <- read_csv("Results/CSV Files/average_acf_lag_year.csv")
+rank_avg <- read_csv("Results/CSV Files/Average_City_Rank.csv")
+table1 <- read_csv("Results/CSV Files/table_of_average_acf_lag.csv")
+combined <- read_csv("Results/CSV Files/combined_data.csv")
+combo_death_year <- fread("Results/CSV Files/combined_data_deaths_year.csv")
+combo_death <- fread("Results/CSV Files/combined_data_deaths.csv")
+table1_death <- read_csv("Results/CSV Files/table_of_average_acf_lag_deaths.csv")
+table2_death <- read_csv("Results/CSV Files/average_acf_lag_year_death.csv")
+```
+```{r}
+table2i <- table2 %>% 
+  arrange(year, -Average_ACF_positive)
+rank_average_year1 <- rank_avg_year %>%
+  group_by(year, Variable) %>% 
+  summarize(Average_Rank_Pos = mean(Positive_Lag_Rank),
+            Average_Rank_Neg = mean(Negative_Lag_Rank)) %>% 
+  arrange(year, Average_Rank_Pos)
+  
+```
+
+# Average Lag Plots
+
+## Positive
+
+### 2020
+```{r}
+figure1 <- ggplot(table2 %>%
+                    filter(year == 2020) %>% 
+                    arrange(Average_Lag_positive) %>%
+                    head(25), aes(x = Average_Lag_positive, y = reorder(Variable, -Average_Lag_positive)))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Average Positive Lag Plot", subtitle = "2020")
+figure1
+ggsave("Weekly Reports/2024_08_20/figure1.png", figure1)
+```
+
+
+### 2021
+
+```{r}
+figure2 <- ggplot(table2 %>%
+                    filter(year == 2021) %>% 
+                    arrange(Average_Lag_positive) %>%
+                    head(25), aes(x = Average_Lag_positive, y = reorder(Variable, -Average_Lag_positive)))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Average Positive Lag Plot", subtitle = "2021")
+figure2
+ggsave("Weekly Reports/2024_08_20/figure2.png", figure2)
+```
+
+
+### 2022
+
+```{r}
+figure3 <- ggplot(table2 %>%
+                    filter(year == 2022) %>% 
+                    arrange(Average_Lag_positive) %>%
+                    head(25), aes(x = Average_Lag_positive, y = reorder(Variable, -Average_Lag_positive)))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Average Positive Lag Plot", subtitle = "2022")
+figure3
+ggsave("Weekly Reports/2024_08_20/figure3.png", figure3)
+```
+
+
+###2023
+
+```{r}
+figure4 <- ggplot(table2 %>%
+                    filter(year == 2023) %>% 
+                    arrange(Average_Lag_positive) %>%
+                    head(25), aes(x = Average_Lag_positive, y = reorder(Variable, -Average_Lag_positive)))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Average Positive Lag Plot", subtitle = "2023")
+figure4
+ggsave("Weekly Reports/2024_08_20/figure4.png", figure4)
+```
+
+```{r}
+figure1_4 <- ggplot(table1 %>% 
+                      filter(Average_Lag_positive <= 6) %>% 
+                      arrange(Average_Lag_positive) %>% 
+                      head(25), aes(x = Average_Lag_positive,
+                                    y = reorder(Variable, Average_Lag_positive)))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag", 
+       y = "Variable",
+       title = "Average Positive Lag Plot",
+       subtitle = "2020-2023")
+figure1_4
+ggsave("Weekly Reports/2024_08_20/figure1_4.png", figure1_4)
+```
+
+##Negative
+
+###2020
+
+```{r}
+figure5 <- ggplot(table2 %>%
+                    filter(year == 2020) %>% 
+                    arrange(abs(Average_Lag_negative)) %>%
+                    head(25), aes(x = Average_Lag_negative,
+                                  y = reorder(Variable, -abs(Average_Lag_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Average Negative Lag Plot", subtitle = "2020")
+ggsave("Weekly Reports/2024_08_20/figure5.png", figure5)
+```
+
+
+###2021
+
+```{r}
+figure6 <- ggplot(table2 %>%
+                    filter(year == 2021) %>% 
+                    arrange(abs(Average_Lag_negative)) %>%
+                    head(25), aes(x = Average_Lag_negative,
+                                  y = reorder(Variable, -abs(Average_Lag_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Average Negative Lag Plot", subtitle = "2021")
+figure6
+ggsave("Weekly Reports/2024_08_20/figure6.png", figure6)
+```
+
+###2022
+
+```{r}
+figure7 <- ggplot(table2 %>%
+                    filter(year == 2022) %>% 
+                    arrange(abs(Average_Lag_negative)) %>%
+                    head(25), aes(x = Average_Lag_negative,
+                                  y = reorder(Variable, -abs(Average_Lag_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Average Negative Lag Plot", subtitle = "2022")
+figure7
+ggsave("Weekly Reports/2024_08_20/figure7.png", figure7)
+```
+
+
+###2023
+
+```{r}
+figure8 <- ggplot(table2 %>%
+                    filter(year == 2023) %>% 
+                    arrange(abs(Average_Lag_negative)) %>%
+                    head(25), aes(x = Average_Lag_negative,
+                                  y = reorder(Variable, -abs(Average_Lag_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Average Negative Lag Plot", subtitle = "2023")
+figure8
+ggsave("Weekly Reports/2024_08_20/figure8.png", figure8)
+```
+
+```{r}
+figure5_8 <- ggplot(table1 %>% 
+                      filter(abs(Average_Lag_negative) <= 6) %>% 
+                      arrange(-abs(Average_Lag_negative)) %>% 
+                      head(10), aes(x = Average_Lag_negative, 
+                                    y = reorder(Variable, abs(Average_Lag_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag", 
+       y = "Variable",
+       title = "Average Negative Lag Plot",
+       subtitle = "2020-2023")
+figure5_8
+ggsave("Weekly Reports/2024_08_20/figure5_8.png", figure5_8)
+```
+
+
+# Average Correlation Plots
+
+## Positive
+
+### 2020
+
+```{r}
+figure9 <- ggplot(table2 %>%
+                    filter(year == 2020) %>% 
+                    arrange(-abs(Average_ACF_positive)) %>%
+                    head(25), aes(x = Average_ACF_positive,
+                                  y = reorder(Variable, -abs(Average_ACF_positive))))+
+  geom_bar(stat = "identity")+
+  labs(x = "ACF",
+       y = "Variable", 
+       title = "Variables by Average Correlation (Positive)", subtitle = "2020")
+figure9
+ggsave("Weekly Reports/2024_08_20/figure9.png", figure9)
+```
+
+
+### 2021
+
+```{r}
+figure10 <- ggplot(table2 %>%
+                    filter(year == 2021) %>% 
+                    arrange(-abs(Average_ACF_positive)) %>%
+                    head(25), aes(x = Average_ACF_positive,
+                                  y = reorder(Variable, -abs(Average_ACF_positive))))+
+  geom_bar(stat = "identity")+
+  labs(x = "ACF",
+       y = "Variable", 
+       title = "Variables by Average Correlation (Positive)", subtitle = "2021")
+figure10
+ggsave("Weekly Reports/2024_08_20/figure10.png", figure10)
+```
+
+
+### 2022
+
+```{r}
+figure11 <- ggplot(table2 %>%
+                    filter(year == 2022) %>% 
+                    arrange(-abs(Average_ACF_positive)) %>%
+                    head(25), aes(x = Average_ACF_positive,
+                                  y = reorder(Variable, -abs(Average_ACF_positive))))+
+  geom_bar(stat = "identity")+
+  labs(x = "ACF",
+       y = "Variable", 
+       title = "Variables by Average Correlation (Positive)", subtitle = "2022")
+figure11
+ggsave("Weekly Reports/2024_08_20/figure11.png", figure11)
+```
+
+
+###2023
+
+```{r}
+figure12 <- ggplot(table2 %>%
+                    filter(year == 2023) %>% 
+                    arrange(-abs(Average_ACF_positive)) %>%
+                    head(25), aes(x = Average_ACF_positive,
+                                  y = reorder(Variable, -abs(Average_ACF_positive))))+
+  geom_bar(stat = "identity")+
+  labs(x = "ACF",
+       y = "Variable", 
+       title = "Variables by Average Correlation (Positive)", subtitle = "2023")
+figure12
+ggsave("Weekly Reports/2024_08_20/figure12.png", figure12)
+```
+
+```{r}
+figure9_12 <- ggplot(table1 %>% 
+                       filter(Average_Lag_positive <= 6) %>% 
+                       arrange(-Average_ACF_positive) %>% 
+                       head(25), aes(x = Average_ACF_positive,
+                                     y = reorder(Variable, -abs(Average_ACF_positive))))+
+  geom_bar(stat = "identity")+
+  labs(x = "ACF",
+       y = "Variable", 
+       title = "Variables by Average Correlation (Positive)",
+       subtitle = "2020-2023")
+figure9_12
+ggsave("Weekly Reports/2024_08_20/figure9_12.png", figure9_12)
+```
+
+##Negative
+
+###2020
+
+```{r}
+figure13 <- ggplot(table2 %>%
+                    filter(year == 2020) %>% 
+                    arrange(-abs(Average_ACF_negative)) %>%
+                    head(25), aes(x = Average_ACF_negative,
+                                  y = reorder(Variable, -abs(Average_ACF_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "ACF",
+       y = "Variable", 
+       title = "Variables by Average Correlation (Negative)", subtitle = "2020")
+figure13
+ggsave("Weekly Reports/2024_08_20/figure13.png", figure13)
+```
+
+
+###2021
+
+```{r}
+figure14 <- ggplot(table2 %>%
+                    filter(year == 2021) %>% 
+                    arrange(-abs(Average_ACF_negative)) %>%
+                    head(25), aes(x = Average_ACF_negative,
+                                  y = reorder(Variable, -abs(Average_ACF_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "ACF",
+       y = "Variable", 
+       title = "Variables by Average Correlation (Negative)", subtitle = "2021")
+figure14
+ggsave("Weekly Reports/2024_08_20/figure14.png", figure14)
+```
+
+
+###2022
+
+```{r}
+figure15 <- ggplot(table2 %>%
+                    filter(year == 2022) %>% 
+                    arrange(-abs(Average_ACF_negative)) %>%
+                    head(25), aes(x = Average_ACF_negative,
+                                  y = reorder(Variable, -abs(Average_ACF_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "ACF",
+       y = "Variable", 
+       title = "Variables by Average Correlation (Negative)", subtitle = "2022")
+figure15
+ggsave("Weekly Reports/2024_08_20/figure15.png", figure15)
+```
+
+
+###2023
+```{r}
+figure16 <- ggplot(table2 %>%
+                    filter(year == 2023) %>% 
+                    arrange(-abs(Average_ACF_negative)) %>%
+                    head(25), aes(x = Average_ACF_negative,
+                                  y = reorder(Variable, -abs(Average_ACF_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "ACF",
+       y = "Variable", 
+       title = "Variables by Average Correlation (Negative)", subtitle = "2023")
+figure16
+ggsave("Weekly Reports/2024_08_20/figure16.png", figure16)
+```
+
+
+```{r}
+figure13_16 <- ggplot(table1 %>%
+                        filter(abs(Average_Lag_negative) <= 6) %>% 
+                        arrange(-Average_ACF_negative) %>% 
+                        head(10), aes(x = Average_ACF_negative,
+                                     y = reorder(Variable, Average_ACF_negative)))+
+  geom_bar(stat = "identity")+
+  labs(x = "ACF",
+       y = "Variable", 
+       title = "Variables by Average Correlation (Negative)",
+       subtitle = "2020-2023")
+figure13_16
+ggsave("Weekly Reports/2024_08_20/figure13_16.png", figure13_16)
+```
+
+```{r}
+common <- table2 %>% 
+  group_by(year) %>%
+  slice_max(Average_ACF_negative, n = 30) %>%
+  ungroup() %>% 
+  group_by(Variable) %>% 
+  summarize(count = n(), 
+            ACF = mean(Average_ACF_negative),
+            Lag = mean(Average_Lag_negative)) %>% 
+  arrange(desc(count), desc(ACF))
+
+
+```
+
+
+
+```{r}
+figure17 <- ggplot(table2 %>%
+                    filter(year == 2020) %>% 
+                    arrange(-abs(Average_ACF_negative)) %>%
+                    head(25), aes(x = Average_Lag_negative,
+                                  y = reorder(Variable, -abs(Average_ACF_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Top Variables by Average Lag (Negative)", subtitle = "2020")
+figure17
+plot_grid(figure13, figure17, ncol = 2)
+```
+```{r}
+figure18 <- ggplot(table2 %>%
+                    filter(year == 2021) %>% 
+                    arrange(-abs(Average_ACF_negative)) %>%
+                    head(25), aes(x = Average_Lag_negative,
+                                  y = reorder(Variable, -abs(Average_ACF_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Top Variables by Average Lag (Negative)", subtitle = "2021")
+figure19 <- ggplot(table2 %>%
+                    filter(year == 2022) %>% 
+                    arrange(-abs(Average_ACF_negative)) %>%
+                    head(25), aes(x = Average_Lag_negative,
+                                  y = reorder(Variable, -abs(Average_ACF_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Top Variables by Average Lag (Negative)", subtitle = "2022")
+figure20 <- ggplot(table2 %>%
+                    filter(year == 2023) %>% 
+                    arrange(-abs(Average_ACF_negative)) %>%
+                    head(25), aes(x = Average_Lag_negative,
+                                  y = reorder(Variable, -abs(Average_ACF_negative))))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lag",
+       y = "Variable", 
+       title = "Top Variables by Average Lag (Negative)", subtitle = "2023")
+figure18
+figure19
+figure20
+
+plot_grid(figure14, figure18)
+plot_grid(figure15, figure19)
+plot_grid(figure16, figure20)
+```
+
+```{r}
+table2i <- table2 %>%  
+  arrange(-abs(Average_ACF_negative)) %>%
+  head(40) %>%
+  group_by(Variable) %>% 
+  summarize(count = n())
+```
+
+```{r}
+table2j <- table2_death %>%
+  group_by(year) %>% 
+  slice_max(Average_ACF_negative, n = 40) %>% 
+  ungroup() %>% 
+  group_by(Variable) %>% 
+  summarize(count = n()) %>% 
+  filter(count == 4) %>% 
+  ungroup() %>% 
+  select(Variable)
+```
+
+
+```{r}
+figure19 <- plot_grid(figure5_8+
+                        labs(title = "Average Lag(Neg)", subtitle = "Negative Lags"), figure13_16+
+                        labs(title = "Average Correlation", subtitle = NULL))
+figure19
+ggsave("Weekly Reports/2024_08_20/figure19.png", figure19)
+```
+```{r}
+common <- table2 %>%
+  group_by(year) %>%
+  arrange(desc(Average_ACF_negative)) %>% 
+  slice_max(Average_ACF_negative, n = 30) %>%
+  ungroup() #%>%
+  group_by(Variable) %>%
+  summarize(count = n(),
+            ACF = mean(Average_ACF_negative),
+            Lag = mean(Average_Lag_negative)) %>%
+  arrange(desc(count), desc(ACF)) #%>%
+  filter(count == 4)
+ggplot(common %>% filter(Variable == "mean_Affect" |
+                           Variable == "mean_COVID_Related" |
+                           Variable == "mean_family" |
+                           Variable == "mean_health" |
+                           Variable == "mean_illness" |
+                           Variable == "mean_Physical"),
+       aes(x = year, y = Average_ACF_negative, color = Variable))+
+  geom_line()+
+  geom_point()+
+  labs(x = "Year",
+       y = "Average ACF",
+       title = "Change in ACF of Common Variables over Time")
+```
+
+```{r}
+source()
+```
+
+```{r}
+ggplot(table2_death %>% filter(Variable == "mean_COVID_Related" | 
+                                 Variable == "mean_health" | 
+                                 Variable == "mean_illness"), 
+       aes(x = year, y = Average_ACF_negative, color = Variable))+
+  geom_line()+
+  geom_point()+
+  labs(x = "Year",
+       y = "Average ACF",
+       title = "Change in ACF of Common Variables over Time")
+```
+```{r}
+table2_death %>% filter(Variable %in% names(table2j))
+```
+
+```{r}
+code <- "C3562"
+
+nyc <- read_csv("Source Data/Weekly Data/nyc_weekly.csv") %>% 
+  filter(week >= "2020-01-01" & week < "2020-07-01")
+city_msa_cases <- cases %>% 
+  filter(MSA_Code == code) %>% 
+  group_by(week, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
+  summarize(Cumulative_Cases = Cases,
+            Est_Population = unique(estpop2020),
+            Population = unique(pop2020)) %>% 
+  ungroup() %>% 
+  group_by(FIPS, Admin2,MSA_Code, MSA_Title, week) %>% 
+  slice_tail(n = 1) %>% 
+  na.omit() %>% 
+  ungroup() %>% 
+  group_by(week, MSA_Code, MSA_Title) %>%
+  summarize(Cumulative_Cases = sum(Cumulative_Cases),
+            Est_Population = sum(Est_Population),
+            Population = sum(Population)) %>% 
+  mutate(week = as_date(week))
+    
+    #set up for ccf
+city_msa_deaths <- deaths %>% 
+  filter(MSA_Code == code) %>% 
+  group_by(week, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
+  summarize(Cumulative_Deaths = Deaths,
+            Est_Population = unique(estpop2020),
+            Population = unique(pop2020)) %>% 
+  ungroup() %>% 
+  group_by(FIPS, Admin2, MSA_Code, MSA_Title, week) %>% 
+  slice_tail(n = 1) %>% 
+  na.omit() %>% 
+  ungroup() %>% 
+  group_by(week, MSA_Code, MSA_Title) %>%
+  summarize(Cumulative_Deaths = sum(Cumulative_Deaths),
+            Est_Population = sum(Est_Population),
+            Population = sum(Population)) %>% 
+  mutate(week = as_date(week))
+    
+city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "week") %>%
+  ungroup() %>% 
+  rename(MSA_Code = MSA_Code.x,
+         MSA_Title = MSA_Title.x,
+         Est_Population = Est_Population.x,
+         Population = Population.x) %>% 
+  select(-c(Est_Population.y, Population.y, MSA_Code.y, MSA_Title.y)) %>% 
+  arrange(week) %>% 
+  mutate(Weekly_Cases = Cumulative_Cases - lag(Cumulative_Cases, n = 1, default = 0),
+         Weekly_Deaths = Cumulative_Deaths - lag(Cumulative_Deaths, n = 1, default = 0)) %>% 
+  filter(week >= "2020-01-01" & week < "2020-07-01")
+```
+```{r}
+nyc_long <- nyc %>% 
+  pivot_longer(cols = starts_with("mean_"),
+               names_to = "indicator",
+               values_to = "value") %>% 
+  filter(indicator %in% c("mean_Affect", "mean_COVID_Related", "mean_family", 
+                         "mean_health", "mean_illness", "mean_Physical", "mean_emo_anx")) %>% 
+  left_join(city_combined, by = "week") %>% 
+  filter(week >= "2020-01-19") %>% 
+  select(week, indicator, value, Weekly_Cases) %>% 
+  pivot_longer(cols = c(value, Weekly_Cases),
+               names_to = "value_type",
+               values_to = "value") %>% 
+  mutate(indicator = ifelse(value_type == "Weekly_Cases", "Weekly_Cases", indicator)) %>% 
+  select(-value_type) 
+reddit_nyc <- ggplot(nyc_long %>% filter(indicator == "mean_emo_anx" | indicator == "Weekly_Cases"),
+                     aes(x = week, y = value, color = indicator))+
+  geom_line()+
+  facet_wrap(~indicator, scales = "free_y", ncol = 1)+
+  scale_color_manual(values = c("mean_Affect" = "red",
+                                "mean_COVID_Related" = "orange",
+                                "mean_family" = "yellow",
+                                "mean_health" = "green",
+                                "mean_illness" = "blue",
+                                "mean_Physical" = "purple",
+                                "mean_emo_anx" = "black",
+                                "Weekly_Cases" = "turquoise"))
+
+reddit_nyc
+case_nyc <- ggplot(reddit_nyc, aes(x = week, y = Weekly_Cases))+
+  geom_line()+
+  labs(x = "Week", 
+       y = "Cases", 
+       title = "Weekly COVID Cases over Time", 
+       subtitle = "NYC")
+case_nyc
+```
+
+Atlanta
+```{r}
+code <- "C1206"
+city_msa_cases <- cases %>% 
+  filter(MSA_Code == code) %>% 
+  group_by(week, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
+  summarize(Cumulative_Cases = Cases,
+            Est_Population = unique(estpop2020),
+            Population = unique(pop2020)) %>% 
+  ungroup() %>% 
+  group_by(FIPS, Admin2,MSA_Code, MSA_Title, week) %>% 
+  slice_tail(n = 1) %>% 
+  na.omit() %>% 
+  ungroup() %>% 
+  group_by(week, MSA_Code, MSA_Title) %>%
+  summarize(Cumulative_Cases = sum(Cumulative_Cases),
+            Est_Population = sum(Est_Population),
+            Population = sum(Population)) %>% 
+  mutate(week = as_date(week))
+    
+    #set up for ccf
+city_msa_deaths <- deaths %>% 
+  filter(MSA_Code == code) %>% 
+  group_by(week, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
+  summarize(Cumulative_Deaths = Deaths,
+            Est_Population = unique(estpop2020),
+            Population = unique(pop2020)) %>% 
+  ungroup() %>% 
+  group_by(FIPS, Admin2, MSA_Code, MSA_Title, week) %>% 
+  slice_tail(n = 1) %>% 
+  na.omit() %>% 
+  ungroup() %>% 
+  group_by(week, MSA_Code, MSA_Title) %>%
+  summarize(Cumulative_Deaths = sum(Cumulative_Deaths),
+            Est_Population = sum(Est_Population),
+            Population = sum(Population)) %>% 
+  mutate(week = as_date(week))
+    
+city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "week") %>%
+  ungroup() %>% 
+  rename(MSA_Code = MSA_Code.x,
+         MSA_Title = MSA_Title.x,
+         Est_Population = Est_Population.x,
+         Population = Population.x) %>% 
+  select(-c(Est_Population.y, Population.y, MSA_Code.y, MSA_Title.y)) %>% 
+  arrange(week) %>% 
+  mutate(Weekly_Cases = Cumulative_Cases - lag(Cumulative_Cases, n = 1, default = 0),
+         Weekly_Deaths = Cumulative_Deaths - lag(Cumulative_Deaths, n = 1, default = 0)) %>% 
+  filter(week >= "2020-01-01" & week < "2020-07-01")
+
+atl <- read_csv("Source Data/Weekly Data/atlanta_weekly.csv") %>%
+  filter(week >= "2020-01-01" & week < "2020-07-01") %>% 
+  pivot_longer(cols = starts_with("mean_"),
+               names_to = "indicator",
+               values_to = "value") %>% 
+  filter(indicator %in% c("mean_Affect", "mean_COVID_Related", "mean_family", 
+                         "mean_health", "mean_illness", "mean_Physical", "mean_emo_anx")) %>% 
+  left_join(city_combined, by = "week") %>% 
+  filter(week >= "2020-01-19") %>% 
+  select(week, indicator, value, Weekly_Cases) %>% 
+  pivot_longer(cols = c(value, Weekly_Cases),
+               names_to = "value_type",
+               values_to = "value") %>% 
+  mutate(indicator = ifelse(value_type == "Weekly_Cases", "Weekly_Cases", indicator)) %>% 
+  select(-value_type) 
+reddit_atl <- ggplot(atl %>% filter(indicator == "mean_emo_anx" | indicator == "Weekly_Cases"),
+                     aes(x = week, y = value, color = indicator))+
+  geom_line()+
+  facet_wrap(~indicator, scales = "free_y", ncol = 1)+
+  labs(x = "Week",
+       title = "Atlanta")
+reddit_atl  
+```
+
+Chicago
+
+```{r}
+code <- "C1698"
+city_msa_cases <- cases %>% 
+  filter(MSA_Code == code) %>% 
+  group_by(week, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
+  summarize(Cumulative_Cases = Cases,
+            Est_Population = unique(estpop2020),
+            Population = unique(pop2020)) %>% 
+  ungroup() %>% 
+  group_by(FIPS, Admin2,MSA_Code, MSA_Title, week) %>% 
+  slice_tail(n = 1) %>% 
+  na.omit() %>% 
+  ungroup() %>% 
+  group_by(week, MSA_Code, MSA_Title) %>%
+  summarize(Cumulative_Cases = sum(Cumulative_Cases),
+            Est_Population = sum(Est_Population),
+            Population = sum(Population)) %>% 
+  mutate(week = as_date(week))
+    
+    #set up for ccf
+city_msa_deaths <- deaths %>% 
+  filter(MSA_Code == code) %>% 
+  group_by(week, MSA_Code, MSA_Title, FIPS, Admin2) %>% 
+  summarize(Cumulative_Deaths = Deaths,
+            Est_Population = unique(estpop2020),
+            Population = unique(pop2020)) %>% 
+  ungroup() %>% 
+  group_by(FIPS, Admin2, MSA_Code, MSA_Title, week) %>% 
+  slice_tail(n = 1) %>% 
+  na.omit() %>% 
+  ungroup() %>% 
+  group_by(week, MSA_Code, MSA_Title) %>%
+  summarize(Cumulative_Deaths = sum(Cumulative_Deaths),
+            Est_Population = sum(Est_Population),
+            Population = sum(Population)) %>% 
+  mutate(week = as_date(week))
+    
+city_combined <- left_join(city_msa_cases, city_msa_deaths, by = "week") %>%
+  ungroup() %>% 
+  rename(MSA_Code = MSA_Code.x,
+         MSA_Title = MSA_Title.x,
+         Est_Population = Est_Population.x,
+         Population = Population.x) %>% 
+  select(-c(Est_Population.y, Population.y, MSA_Code.y, MSA_Title.y)) %>% 
+  arrange(week) %>% 
+  mutate(Weekly_Cases = Cumulative_Cases - lag(Cumulative_Cases, n = 1, default = 0),
+         Weekly_Deaths = Cumulative_Deaths - lag(Cumulative_Deaths, n = 1, default = 0)) %>% 
+  filter(week >= "2020-01-01" & week < "2020-07-01")
+
+chi <- read_csv("Source Data/Weekly Data/chicago_weekly.csv") %>%
+  filter(week >= "2020-01-01" & week < "2020-07-01") %>% 
+  pivot_longer(cols = starts_with("mean_"),
+               names_to = "indicator",
+               values_to = "value") %>% 
+  filter(indicator %in% c("mean_Affect", "mean_COVID_Related", "mean_family", 
+                         "mean_health", "mean_illness", "mean_Physical", "mean_emo_anx")) %>% 
+  left_join(city_combined, by = "week") %>% 
+  filter(week >= "2020-01-19") %>% 
+  select(week, indicator, value, Weekly_Cases) %>% 
+  pivot_longer(cols = c(value, Weekly_Cases),
+               names_to = "value_type",
+               values_to = "value") %>% 
+  mutate(indicator = ifelse(value_type == "Weekly_Cases", "Weekly_Cases", indicator)) %>% 
+  select(-value_type) 
+reddit_chi <- ggplot(chi %>% filter(indicator == "mean_emo_anx" | indicator == "Weekly_Cases"),
+                     aes(x = week, y = value, color = indicator))+
+  geom_line()+
+  facet_wrap(~indicator, scales = "free_y", ncol = 1)+
+  labs(x = "Week",
+       title = "Chicago")
+reddit_chi
+```
+```{r}
+library(here)
+source(here("Functions/04 - ccf_city_case_files().R"))
+
+files <- list.files("Source Data/Weekly Data") %>% 
+  as.vector()
+MSA_Codes <- c("C1206", "C1242","C1258", "C1446","C1674", "C1698","C1814",
+               "C1910","C1974","C1982","C2642","C2814", "C3108","C3346",
+               "C3498","C3538", "C3562", "C3674", "C3798", "C3806", "C3890",
+               "C3958","C4162", "C4174", "C4186", "C4266", "C4118","C4530","C2982", "C4790")
+Cities <- c("Atlanta", "Austin","Baltimore", "Boston", "Charlotte", "Chicago", "Columbus","Dallas","Denver",
+            "Detroit","Houston","Kansas City","Los Angeles","Minneapolis","Nashville","New Orleans",
+            "New York City", "Orlando", "Philadelphia", "Phoenix", "Portland", "Raleigh","Salt Lake City",
+            "San Diego", "San Francisco", "Seattle", "St. Louis","Tampa Bay","Las Vegas", "Washington DC")
+States <- c("Georgia", "Texas", "Maryland", "Massachussetts", "North Carolina", "Illinois", "Ohio", "Texas",
+            "Colorado", "Michigan", "Texas", "Missouri", "California", "Minnesota", "Tennessee", "Louisiana",
+            "New York", "Florida", "Pennsylvania", "Arizona", "Oregon", "North Carolina", "Utah",
+            "California", "California", "Washington", "Missouri", "Florida", "Nevada", "Maryland")
+info <- bind_cols(Cities, MSA_Codes) %>% 
+  rename(city = `...1`,
+         msa_code = `...2`) %>% 
+  bind_cols(filename = files, 
+            state = States) %>%
+  select(city, state, msa_code, filename) %>% 
+  rename(City = city, 
+         State = state) %>% 
+  slice(-16)
+```
+
+```{r}
+result_list3 <- list()
+for (i in 1:nrow(info)) {
+  
+  row <- info[i, ]
+  City <- row$City
+  State <- row$State
+  msa_code <- row$msa_code
+  filename <- row$filename
+  
+  message(paste("Processing", City))
+  # Call your function for each row
+  acf_result <- ccf_tables("Source Data/Weekly Data", filename = as.character(filename),
+                           code = msa_code, city = City, state = State, explanatory = NULL)
+  acf_table <- acf_result$complete_table %>%
+    as_tibble() %>%
+    filter(Lag >= -6 & Lag <= 6) %>% 
+    mutate(Lag = as.factor(Lag)) %>% 
+    group_by(Lag, City) %>% 
+    slice_max(order_by = abs(ACF), n = 1)
+
+  # Store the result in the list
+  result_list3[[i]] <- acf_table
+  
+  message(paste("Finished processing", City))
+}
+result_table3 <- do.call(rbind, result_list3)
+```
+
+```{r}
+folder_path <- "Source Data/Weekly Data"
+row <- info[1, ]
+City <- row$City
+State <- row$State
+msa_code <- row$msa_code
+filename <- row$filename
+variables <- result_table3 %>% filter(City == "Atlanta" & Sign == "Lag < 0") %>% 
+  select(Variable) %>% 
+  pull() %>% 
+  unique()
+acf_result <- ccf_tables("Source Data/Weekly Data", filename = as.character(filename),
+                         code = msa_code, city = City, state = State, explanatory = NULL)
+acf_table <- acf_result$complete_table %>% filter(Variable %in% variables) %>% filter(Lag >= -6 & Lag <= 0)
+ggplot(acf_table, aes(x = Lag, y = ACF, color = Variable))+
+  geom_line()+
+  labs(title = "Change in ACF over Negative Lags",
+       subtitle = "Atlanta")
+```
+
+Summarize mean ACF across locations for each lag and variable
+group by variable, lag
+
+
+```{r}
+result_list4 <- list()
+for (i in 1:nrow(info)) {
+  row <- info[i, ]
+  City <- row$City
+  State <- row$State
+  msa_code <- row$msa_code
+  filename <- row$filename
+  
+  message(paste("Processing", City))
+  # Call your function for each row
+  acf_result <- ccf_tables("Source Data/Weekly Data", filename = as.character(filename),
+                           code = msa_code, city = City, state = State, explanatory = NULL)
+  acf_table <- acf_result$complete_table %>% as_tibble()
+  result_list4[[i]] <- acf_table
+}
+result_table4 <- do.call(rbind, result_list4)
+```
+
+```{r}
+summary_table4 <- result_table4 %>% filter(Lag >= -6 & Lag <= 6) %>% 
+  group_by(Variable, Lag) %>% 
+  summarize(ACF = mean(ACF)) %>% 
+  filter(Lag < 0)
+```
+

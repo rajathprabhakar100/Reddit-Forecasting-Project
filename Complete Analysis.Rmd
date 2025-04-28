@@ -97,6 +97,7 @@ min3 <- bind_rows(min1, min2) %>%
 fwrite(min3, "Source Data/03 - Daily Data/minneapolis_daily.csv")
 ```
 
+
 ```{r}
 source(here("Functions", "04 - ccf_city_case_files().R"))
 ```
@@ -142,7 +143,7 @@ source(here("Results/R codes", "Code for table_of_average_acf_lag.R"))
 ```
 
 ```{r}
-table1 %>% arrange(Average_ACF_positive)
+table1 %>% arrange(-Average_ACF_positive)
 ```
 
 mean_illness has the highest correlation with Covid cases, and has an average lag of about 14 days. 
@@ -949,7 +950,1675 @@ for (city in names(forecast_city_list)) {
 }
 ```
 
+Model Evaluations - xreg = mean_COVID_Related
+
 ```{r}
-forecast_city_list$Austin$model0
+forecast0_complete <- list()
+forecast7_complete <- list()
+for (city in names(forecast_city_list)) {
+  forecast0_complete[[city]] <- forecast_city_list[[city]]$forecast0
+  forecast7_complete[[city]] <- forecast_city_list[[city]]$forecast7
+}
+forecast0_complete <- bind_rows(forecast0_complete) %>% select(week, City, everything())
+forecast7_complete <- bind_rows(forecast7_complete) %>% select(week, City, everything())
 ```
+
+```{r}
+forecast0_complete <- forecast0_complete %>%
+  mutate(Coverage_95 = ifelse(Weekly_Cases >= Lo_95 & Weekly_Cases <= Hi_95, "yes", "no"), 
+         Abs_Error = abs(Weekly_Cases - Point_Forecast),
+         Abs_Pct_Error = (abs(Weekly_Cases - Point_Forecast)/abs(Weekly_Cases))*100) %>% 
+  select(week, City, MSA_Code, MSA_Title, Lo_95, Lo_80, Point_Forecast, Hi_80, Hi_95, Weekly_Cases, 
+         Coverage_95, Abs_Error, Abs_Pct_Error, everything())
+forecast0_stats <- forecast0_complete %>% 
+  group_by(City) %>% 
+  summarize(Coverage_95 = sum(Coverage_95 == "yes")/n(),
+            MAE = mean(Abs_Error),
+            MAPE = mean(Abs_Pct_Error)) %>% 
+  mutate(proj_type = "Nowcast")
+```
+
+
+```{r}
+forecast7_complete <- forecast7_complete %>% 
+  mutate(Coverage_95 = ifelse(Weekly_Cases >= Lo_95 & Weekly_Cases <= Hi_95, "yes", "no"), 
+         Abs_Error = abs(Weekly_Cases - Point_Forecast),
+         Abs_Pct_Error = (abs(Weekly_Cases - Point_Forecast)/abs(Weekly_Cases))*100) %>% 
+  select(week, City, MSA_Code, MSA_Title, Lo_95, Lo_80, Point_Forecast, Hi_80, Hi_95, Weekly_Cases, 
+         Coverage_95, Abs_Error, Abs_Pct_Error, everything())
+forecast7_stats <- forecast7_complete %>% 
+  group_by(City) %>% 
+  summarize(Coverage_95 = sum(Coverage_95 == "yes")/n(),
+            MAE = mean(Abs_Error),
+            MAPE = mean(Abs_Pct_Error)) %>% 
+  mutate(proj_type = "Forecast")
+```
+
+```{r}
+forecast_stats <- bind_rows(forecast0_stats, forecast7_stats) %>% mutate(proj_type = as.factor(proj_type))
+```
+
+```{r}
+ggplot(forecast_stats %>% filter(MAPE != Inf) %>% filter(!is.nan(MAPE)), aes(x = City, y = MAPE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(title = "MAPE by City", 
+       subtitle = "xreg = mean_COVID_Related", 
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+```
+
+Forecasts have a much higher MAPE across all cities compared to nowcasts. This suggests the latter are much more accurate. 
+
+```{r}
+ggplot(forecast_stats, aes(x = City, y = Coverage_95, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(y = "Coverage",
+       title = "95% Coverage by City", 
+       subtitle = "xreg = mean_COVID_Related", 
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+```
+
+Nowcasts have 
+```{r}
+ggplot(forecast_stats, aes(x = City, y = MAE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(title = "MAE by City", 
+       subtitle = "xreg = mean_COVID_Related", 
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+```
+Metrics by Date
+```{r}
+forecast_stats_complete <- bind_rows(forecast0_complete %>% mutate(proj_type = "Nowcast"),
+                               forecast7_complete %>% mutate(proj_type = "Forecast")) %>% 
+  mutate(proj_type = as.factor(proj_type), 
+         Weekly_Cases = ifelse(Weekly_Cases == 0, 1, Weekly_Cases)) %>% 
+  group_by(week, proj_type) %>% 
+  summarize(MAE = mean(abs(Weekly_Cases - Point_Forecast)),
+            MAPE = mean(abs(Weekly_Cases - Point_Forecast)/abs(Weekly_Cases))*100) %>% 
+  filter(week > "2020-04-05")
+```
+
+```{r}
+ggplot(forecast_stats_complete %>% filter(MAPE != Inf & !is.nan(MAPE)), aes(x = week, y = MAPE, color = proj_type))+
+  geom_line()
+ggplot(forecast_stats_complete %>% filter(MAPE != Inf & !is.nan(MAPE)), aes(x = week, y = MAE, color = proj_type))+
+  geom_line()
+```
+
+```{r}
+i <- forecast_city_list$Atlanta$forecast0
+```
+
+
+
+illness, reddit_lag = 1, case_lag = 0
+```{r}
+library(cowplot)
+forecast_city_list <- list()
+for (city in unique(reddit_and_cases %>% filter(City != "New Orleans") %>% pull(City))) {
+  CityData <- reddit_and_cases %>% filter(City == city)
+  city_forecast0 <- list()
+  city_forecast7 <- list()
+  
+  message(paste("Forecasting ", city))
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_0week_forecasts(cutoff_date = date, city = city, explanatory = "mean_illness",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast0[[as.character(date)]] <- forecast
+    message(paste("Finished nowcast for", date, "in", city))
+  }  
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_1week_forecasts(cutoff_date = date, city = city, explanatory = "mean_illness",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast7[[as.character(date)]] <- forecast
+    message(paste("Finished forecast for", date, "in", city))
+  }
+
+  final_forecast0 <- list()
+  final_model0 <- list()
+
+  final_forecast7 <- list()
+  final_model7 <- list()
+
+  for (date in names(city_forecast0)) {
+    forecast0 <- city_forecast0[[date]]$forecast
+    final_forecast0[[date]] <- forecast0
+    model0 <- city_forecast0[[date]]$model
+    final_model0[[date]] <- model0
+  }
+
+  for (date in names(city_forecast7)) {
+    forecast7 <- city_forecast7[[date]]$forecast
+    final_forecast7[[date]] <- forecast7
+    model7 <- city_forecast7[[date]]$model
+    final_model7[[date]] <- model7
+  }
+  
+  final_forecast0 <- bind_rows(final_forecast0) %>% 
+      rename(Lo_95 = `Lo 95`,
+             Lo_80 = `Lo 80`,
+             Point_Forecast = `Point Forecast`,
+             Hi_80 = `Hi 80`,
+             Hi_95 = `Hi 95`)
+  final_model0 <- bind_rows(final_model0) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+  
+  final_forecast7 <- bind_rows(final_forecast7) %>% 
+          rename(Lo_95 = `Lo 95`,
+                 Lo_80 = `Lo 80`,
+                 Point_Forecast = `Point Forecast`,
+                 Hi_80 = `Hi 80`,
+                 Hi_95 = `Hi 95`)
+  final_model7 <- bind_rows(final_model7) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+
+
+  city_graph0 <- ggplot(final_forecast0, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("Nowcast for", city))+
+    theme(legend.position = "none")
+#print(city_graph0)
+  city_graph7 <- ggplot(final_forecast7, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("7 Day Forecast for", city))+
+    theme(legend.position = "none")
+
+  legend <- get_legend(
+    ggplot(final_forecast7, aes(x = week)) +
+      geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases")) +
+      geom_line(aes(y = Point_Forecast, color = "Forecast")) +
+      geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3) +
+      geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5) +
+      scale_fill_manual(values = c("95% Confidence" = "yellow", "80% Confidence" = "blue")) +
+      scale_color_manual(values = c("Forecast" = "red")) +
+      scale_shape_manual(values = c("Weekly Cases" = 16)) +
+      labs(fill = "Confidence", color = "Forecast", shape = "True Cases") +
+      theme(legend.position = "right")
+  )
+
+  city_grid <- plot_grid(plot_grid(city_graph0, city_graph7), legend, rel_widths = c(3, 0.4))
+  city_forecast <- list(forecast0 = final_forecast0,
+                        model0 = final_model0,
+                        forecast7 = final_forecast7,
+                        model7 = final_model7,
+                        forecast_graph = city_grid)
+  forecast_city_list[[city]] <- city_forecast
+  message(paste("Finished", city))
+}
+```
+
+```{r}
+forecast_city_list_illness <- forecast_city_list
+```
+
+```{r}
+save(forecast_city_list_illness, file = "Environments/forecast_city_list_illness.RData")
+```
+
+```{r}
+load("Environments/forecast_city_list_illness.RData")
+```
+
+```{r}
+i <- forecast_city_list_illness$Atlanta$forecast_graph
+i
+```
+
+
+Model Evaluations
+
+```{r}
+forecast0_complete <- list()
+forecast7_complete <- list()
+for (city in names(forecast_city_list_illness)) {
+  forecast0_complete[[city]] <- forecast_city_list_illness[[city]]$forecast0
+  forecast7_complete[[city]] <- forecast_city_list_illness[[city]]$forecast7
+}
+forecast0_complete_illness <- bind_rows(forecast0_complete) %>% select(week, City, everything())
+forecast7_complete_illness <- bind_rows(forecast7_complete) %>% select(week, City, everything())
+```
+
+```{r}
+forecast0_complete_illness <- forecast0_complete_illness %>%
+  mutate(Coverage_95 = ifelse(Weekly_Cases >= Lo_95 & Weekly_Cases <= Hi_95, "yes", "no"), 
+         Abs_Error = abs(Weekly_Cases - Point_Forecast),
+         Abs_Pct_Error = (abs(Weekly_Cases - Point_Forecast)/abs(Weekly_Cases))*100) %>% 
+  select(week, City, MSA_Code, MSA_Title, Lo_95, Lo_80, Point_Forecast, Hi_80, Hi_95, Weekly_Cases, 
+         Coverage_95, Abs_Error, Abs_Pct_Error, everything())
+forecast0_stats <- forecast0_complete_illness %>% 
+  group_by(City) %>% 
+  summarize(Coverage_95 = sum(Coverage_95 == "yes")/n(),
+            MAE = mean(Abs_Error),
+            MAPE = mean(Abs_Pct_Error)) %>% 
+  mutate(proj_type = "Nowcast")
+```
+
+
+```{r}
+forecast7_complete_illness <- forecast7_complete_illness %>% 
+  mutate(Coverage_95 = ifelse(Weekly_Cases >= Lo_95 & Weekly_Cases <= Hi_95, "yes", "no"), 
+         Abs_Error = abs(Weekly_Cases - Point_Forecast),
+         Abs_Pct_Error = (abs(Weekly_Cases - Point_Forecast)/abs(Weekly_Cases))*100) %>% 
+  select(week, City, MSA_Code, MSA_Title, Lo_95, Lo_80, Point_Forecast, Hi_80, Hi_95, Weekly_Cases, 
+         Coverage_95, Abs_Error, Abs_Pct_Error, everything())
+forecast7_stats <- forecast7_complete_illness %>% 
+  group_by(City) %>% 
+  summarize(Coverage_95 = sum(Coverage_95 == "yes")/n(),
+            MAE = mean(Abs_Error),
+            MAPE = mean(Abs_Pct_Error)) %>% 
+  mutate(proj_type = "Forecast")
+```
+
+```{r}
+forecast_stats <- bind_rows(forecast0_stats, forecast7_stats) %>% mutate(proj_type = as.factor(proj_type))
+```
+
+```{r}
+p4 <- ggplot(forecast_stats %>% filter(MAPE != Inf) %>% filter(!is.nan(MAPE)), aes(x = reorder(City, MAPE),
+                                                                                   y = MAPE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(title = "MAPE by City", 
+       subtitle = "xreg = mean_illness, lagged_mean_illness", 
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p4
+```
+
+```{r}
+p5 <- ggplot(forecast_stats, aes(x = reorder(City, MAE), y = MAE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(title = "MAE by City", 
+       subtitle = "xreg = mean_illness, lagged_mean_illness", 
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p5
+```
+
+```{r}
+p6 <- ggplot(forecast_stats, aes(x = reorder(City, Coverage_95), y = Coverage_95, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(y = "Coverage",
+       title = "95% Coverage by City", 
+       subtitle = "xreg = mean_illness, lagged_mean_illness", 
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p6
+```
+
+health, lag = 1
+
+```{r}
+forecast_city_list <- list()
+for (city in unique(reddit_and_cases %>% filter(City != "New Orleans") %>% pull(City))) {
+  CityData <- reddit_and_cases %>% filter(City == city)
+  city_forecast0 <- list()
+  city_forecast7 <- list()
+  
+  message(paste("Forecasting ", city))
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_0week_forecasts(cutoff_date = date, city = city, explanatory = "mean_health",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast0[[as.character(date)]] <- forecast
+    message(paste("Finished nowcast for", date, "in", city))
+  }  
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_1week_forecasts(cutoff_date = date, city = city, explanatory = "mean_health",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast7[[as.character(date)]] <- forecast
+    message(paste("Finished forecast for", date, "in", city))
+  }
+
+  final_forecast0 <- list()
+  final_model0 <- list()
+
+  final_forecast7 <- list()
+  final_model7 <- list()
+
+  for (date in names(city_forecast0)) {
+    forecast0 <- city_forecast0[[date]]$forecast
+    final_forecast0[[date]] <- forecast0
+    model0 <- city_forecast0[[date]]$model
+    final_model0[[date]] <- model0
+  }
+
+  for (date in names(city_forecast7)) {
+    forecast7 <- city_forecast7[[date]]$forecast
+    final_forecast7[[date]] <- forecast7
+    model7 <- city_forecast7[[date]]$model
+    final_model7[[date]] <- model7
+  }
+  
+  final_forecast0 <- bind_rows(final_forecast0) %>% 
+      rename(Lo_95 = `Lo 95`,
+             Lo_80 = `Lo 80`,
+             Point_Forecast = `Point Forecast`,
+             Hi_80 = `Hi 80`,
+             Hi_95 = `Hi 95`)
+  final_model0 <- bind_rows(final_model0) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+  
+  final_forecast7 <- bind_rows(final_forecast7) %>% 
+          rename(Lo_95 = `Lo 95`,
+                 Lo_80 = `Lo 80`,
+                 Point_Forecast = `Point Forecast`,
+                 Hi_80 = `Hi 80`,
+                 Hi_95 = `Hi 95`)
+  final_model7 <- bind_rows(final_model7) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+
+
+  city_graph0 <- ggplot(final_forecast0, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("Nowcast for", city))+
+    theme(legend.position = "none")
+#print(city_graph0)
+  city_graph7 <- ggplot(final_forecast7, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("7 Day Forecast for", city))+
+    theme(legend.position = "none")
+
+  legend <- get_legend(
+    ggplot(final_forecast7, aes(x = week)) +
+      geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases")) +
+      geom_line(aes(y = Point_Forecast, color = "Forecast")) +
+      geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3) +
+      geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5) +
+      scale_fill_manual(values = c("95% Confidence" = "yellow", "80% Confidence" = "blue")) +
+      scale_color_manual(values = c("Forecast" = "red")) +
+      scale_shape_manual(values = c("Weekly Cases" = 16)) +
+      labs(fill = "Confidence", color = "Forecast", shape = "True Cases") +
+      theme(legend.position = "right")
+  )
+
+  city_grid <- plot_grid(plot_grid(city_graph0, city_graph7), legend, rel_widths = c(3, 0.4))
+  city_forecast <- list(forecast0 = final_forecast0,
+                        model0 = final_model0,
+                        forecast7 = final_forecast7,
+                        model7 = final_model7,
+                        forecast_graph = city_grid)
+  forecast_city_list[[city]] <- city_forecast
+  message(paste("Finished", city))
+}
+```
+
+
+```{r}
+forecast_city_list_health <- forecast_city_list
+```
+
+```{r}
+save(forecast_city_list_health, file = "Environments/forecast_city_list_health.RData")
+```
+
+```{r}
+load("Environments/forecast_city_list_health.RData")
+```
+
+
+Affect, lag = 1
+
+```{r}
+forecast_city_list <- list()
+for (city in unique(reddit_and_cases %>% filter(City != "New Orleans") %>% pull(City))) {
+  CityData <- reddit_and_cases %>% filter(City == city)
+  city_forecast0 <- list()
+  city_forecast7 <- list()
+  
+  message(paste("Forecasting ", city))
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_0week_forecasts(cutoff_date = date, city = city, explanatory = "mean_Affect",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast0[[as.character(date)]] <- forecast
+    message(paste("Finished nowcast for", date, "in", city))
+  }  
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_1week_forecasts(cutoff_date = date, city = city, explanatory = "mean_Affect",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast7[[as.character(date)]] <- forecast
+    message(paste("Finished forecast for", date, "in", city))
+  }
+
+  final_forecast0 <- list()
+  final_model0 <- list()
+
+  final_forecast7 <- list()
+  final_model7 <- list()
+
+  for (date in names(city_forecast0)) {
+    forecast0 <- city_forecast0[[date]]$forecast
+    final_forecast0[[date]] <- forecast0
+    model0 <- city_forecast0[[date]]$model
+    final_model0[[date]] <- model0
+  }
+
+  for (date in names(city_forecast7)) {
+    forecast7 <- city_forecast7[[date]]$forecast
+    final_forecast7[[date]] <- forecast7
+    model7 <- city_forecast7[[date]]$model
+    final_model7[[date]] <- model7
+  }
+  
+  final_forecast0 <- bind_rows(final_forecast0) %>% 
+      rename(Lo_95 = `Lo 95`,
+             Lo_80 = `Lo 80`,
+             Point_Forecast = `Point Forecast`,
+             Hi_80 = `Hi 80`,
+             Hi_95 = `Hi 95`)
+  final_model0 <- bind_rows(final_model0) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+  
+  final_forecast7 <- bind_rows(final_forecast7) %>% 
+          rename(Lo_95 = `Lo 95`,
+                 Lo_80 = `Lo 80`,
+                 Point_Forecast = `Point Forecast`,
+                 Hi_80 = `Hi 80`,
+                 Hi_95 = `Hi 95`)
+  final_model7 <- bind_rows(final_model7) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+
+
+  city_graph0 <- ggplot(final_forecast0, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("Nowcast for", city))+
+    theme(legend.position = "none")
+#print(city_graph0)
+  city_graph7 <- ggplot(final_forecast7, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("7 Day Forecast for", city))+
+    theme(legend.position = "none")
+
+  legend <- get_legend(
+    ggplot(final_forecast7, aes(x = week)) +
+      geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases")) +
+      geom_line(aes(y = Point_Forecast, color = "Forecast")) +
+      geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3) +
+      geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5) +
+      scale_fill_manual(values = c("95% Confidence" = "yellow", "80% Confidence" = "blue")) +
+      scale_color_manual(values = c("Forecast" = "red")) +
+      scale_shape_manual(values = c("Weekly Cases" = 16)) +
+      labs(fill = "Confidence", color = "Forecast", shape = "True Cases") +
+      theme(legend.position = "right")
+  )
+
+  city_grid <- plot_grid(plot_grid(city_graph0, city_graph7), legend, rel_widths = c(3, 0.4))
+  city_forecast <- list(forecast0 = final_forecast0,
+                        model0 = final_model0,
+                        forecast7 = final_forecast7,
+                        model7 = final_model7,
+                        forecast_graph = city_grid)
+  forecast_city_list[[city]] <- city_forecast
+  message(paste("Finished", city))
+}
+```
+
+```{r}
+forecast_city_list_Affect <- forecast_city_list
+```
+
+```{r}
+save(forecast_city_list_Affect, file = "Environments/forecast_city_list_Affect.RData")
+```
+
+Physical, lag = 1
+
+
+```{r}
+forecast_city_list <- list()
+for (city in unique(reddit_and_cases %>% filter(City != "New Orleans") %>% pull(City))) {
+  CityData <- reddit_and_cases %>% filter(City == city)
+  city_forecast0 <- list()
+  city_forecast7 <- list()
+  
+  message(paste("Forecasting ", city))
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_0week_forecasts(cutoff_date = date, city = city, explanatory = "mean_Physical",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast0[[as.character(date)]] <- forecast
+    message(paste("Finished nowcast for", date, "in", city))
+  }  
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_1week_forecasts(cutoff_date = date, city = city, explanatory = "mean_Physical",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast7[[as.character(date)]] <- forecast
+    message(paste("Finished forecast for", date, "in", city))
+  }
+
+  final_forecast0 <- list()
+  final_model0 <- list()
+
+  final_forecast7 <- list()
+  final_model7 <- list()
+
+  for (date in names(city_forecast0)) {
+    forecast0 <- city_forecast0[[date]]$forecast
+    final_forecast0[[date]] <- forecast0
+    model0 <- city_forecast0[[date]]$model
+    final_model0[[date]] <- model0
+  }
+
+  for (date in names(city_forecast7)) {
+    forecast7 <- city_forecast7[[date]]$forecast
+    final_forecast7[[date]] <- forecast7
+    model7 <- city_forecast7[[date]]$model
+    final_model7[[date]] <- model7
+  }
+  
+  final_forecast0 <- bind_rows(final_forecast0) %>% 
+      rename(Lo_95 = `Lo 95`,
+             Lo_80 = `Lo 80`,
+             Point_Forecast = `Point Forecast`,
+             Hi_80 = `Hi 80`,
+             Hi_95 = `Hi 95`)
+  final_model0 <- bind_rows(final_model0) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+  
+  final_forecast7 <- bind_rows(final_forecast7) %>% 
+          rename(Lo_95 = `Lo 95`,
+                 Lo_80 = `Lo 80`,
+                 Point_Forecast = `Point Forecast`,
+                 Hi_80 = `Hi 80`,
+                 Hi_95 = `Hi 95`)
+  final_model7 <- bind_rows(final_model7) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+
+
+  city_graph0 <- ggplot(final_forecast0, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("Nowcast for", city))+
+    theme(legend.position = "none")
+#print(city_graph0)
+  city_graph7 <- ggplot(final_forecast7, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("7 Day Forecast for", city))+
+    theme(legend.position = "none")
+
+  legend <- get_legend(
+    ggplot(final_forecast7, aes(x = week)) +
+      geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases")) +
+      geom_line(aes(y = Point_Forecast, color = "Forecast")) +
+      geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3) +
+      geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5) +
+      scale_fill_manual(values = c("95% Confidence" = "yellow", "80% Confidence" = "blue")) +
+      scale_color_manual(values = c("Forecast" = "red")) +
+      scale_shape_manual(values = c("Weekly Cases" = 16)) +
+      labs(fill = "Confidence", color = "Forecast", shape = "True Cases") +
+      theme(legend.position = "right")
+  )
+
+  city_grid <- plot_grid(plot_grid(city_graph0, city_graph7), legend, rel_widths = c(3, 0.4))
+  city_forecast <- list(forecast0 = final_forecast0,
+                        model0 = final_model0,
+                        forecast7 = final_forecast7,
+                        model7 = final_model7,
+                        forecast_graph = city_grid)
+  forecast_city_list[[city]] <- city_forecast
+  message(paste("Finished", city))
+}
+```
+
+```{r}
+forecast_city_list_Physical <- forecast_city_list
+```
+
+```{r}
+save(forecast_city_list_Physical, file = "Environments/forecast_city_list_Physical.RData")
+```
+
+
+family, lag = 1
+
+```{r}
+forecast_city_list <- list()
+for (city in unique(reddit_and_cases %>% filter(City != "New Orleans") %>% pull(City))) {
+  CityData <- reddit_and_cases %>% filter(City == city)
+  city_forecast0 <- list()
+  city_forecast7 <- list()
+  
+  message(paste("Forecasting ", city))
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_0week_forecasts(cutoff_date = date, city = city, explanatory = "mean_family",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast0[[as.character(date)]] <- forecast
+    message(paste("Finished nowcast for", date, "in", city))
+  }  
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_1week_forecasts(cutoff_date = date, city = city, explanatory = "mean_family",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast7[[as.character(date)]] <- forecast
+    message(paste("Finished forecast for", date, "in", city))
+  }
+
+  final_forecast0 <- list()
+  final_model0 <- list()
+
+  final_forecast7 <- list()
+  final_model7 <- list()
+
+  for (date in names(city_forecast0)) {
+    forecast0 <- city_forecast0[[date]]$forecast
+    final_forecast0[[date]] <- forecast0
+    model0 <- city_forecast0[[date]]$model
+    final_model0[[date]] <- model0
+  }
+
+  for (date in names(city_forecast7)) {
+    forecast7 <- city_forecast7[[date]]$forecast
+    final_forecast7[[date]] <- forecast7
+    model7 <- city_forecast7[[date]]$model
+    final_model7[[date]] <- model7
+  }
+  
+  final_forecast0 <- bind_rows(final_forecast0) %>% 
+      rename(Lo_95 = `Lo 95`,
+             Lo_80 = `Lo 80`,
+             Point_Forecast = `Point Forecast`,
+             Hi_80 = `Hi 80`,
+             Hi_95 = `Hi 95`)
+  final_model0 <- bind_rows(final_model0) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+  
+  final_forecast7 <- bind_rows(final_forecast7) %>% 
+          rename(Lo_95 = `Lo 95`,
+                 Lo_80 = `Lo 80`,
+                 Point_Forecast = `Point Forecast`,
+                 Hi_80 = `Hi 80`,
+                 Hi_95 = `Hi 95`)
+  final_model7 <- bind_rows(final_model7) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+
+
+  city_graph0 <- ggplot(final_forecast0, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("Nowcast for", city))+
+    theme(legend.position = "none")
+#print(city_graph0)
+  city_graph7 <- ggplot(final_forecast7, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("7 Day Forecast for", city))+
+    theme(legend.position = "none")
+
+  legend <- get_legend(
+    ggplot(final_forecast7, aes(x = week)) +
+      geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases")) +
+      geom_line(aes(y = Point_Forecast, color = "Forecast")) +
+      geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3) +
+      geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5) +
+      scale_fill_manual(values = c("95% Confidence" = "yellow", "80% Confidence" = "blue")) +
+      scale_color_manual(values = c("Forecast" = "red")) +
+      scale_shape_manual(values = c("Weekly Cases" = 16)) +
+      labs(fill = "Confidence", color = "Forecast", shape = "True Cases") +
+      theme(legend.position = "right")
+  )
+
+  city_grid <- plot_grid(plot_grid(city_graph0, city_graph7), legend, rel_widths = c(3, 0.4))
+  city_forecast <- list(forecast0 = final_forecast0,
+                        model0 = final_model0,
+                        forecast7 = final_forecast7,
+                        model7 = final_model7,
+                        forecast_graph = city_grid)
+  forecast_city_list[[city]] <- city_forecast
+  message(paste("Finished", city))
+}
+```
+
+```{r}
+forecast_city_list_family <- forecast_city_list
+```
+
+```{r}
+save(forecast_city_list_family, file = "Environments/forecast_city_list_family.RData")
+```
+
+```{r}
+forecast_city_list <- list()
+for (city in unique(reddit_and_cases %>% filter(City != "New Orleans") %>% pull(City))) {
+  CityData <- reddit_and_cases %>% filter(City == city)
+  city_forecast0 <- list()
+  city_forecast7 <- list()
+  
+  message(paste("Forecasting ", city))
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_0week_forecasts(cutoff_date = date, city = city, explanatory = "mean_COVID_Related",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast0[[as.character(date)]] <- forecast
+    message(paste("Finished nowcast for", date, "in", city))
+  }  
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_1week_forecasts(cutoff_date = date, city = city, explanatory = "mean_COVID_Related",
+                                    case_lag = 0, reddit_lag = 1)
+    city_forecast7[[as.character(date)]] <- forecast
+    message(paste("Finished forecast for", date, "in", city))
+  }
+
+  final_forecast0 <- list()
+  final_model0 <- list()
+
+  final_forecast7 <- list()
+  final_model7 <- list()
+
+  for (date in names(city_forecast0)) {
+    forecast0 <- city_forecast0[[date]]$forecast
+    final_forecast0[[date]] <- forecast0
+    model0 <- city_forecast0[[date]]$model
+    final_model0[[date]] <- model0
+  }
+
+  for (date in names(city_forecast7)) {
+    forecast7 <- city_forecast7[[date]]$forecast
+    final_forecast7[[date]] <- forecast7
+    model7 <- city_forecast7[[date]]$model
+    final_model7[[date]] <- model7
+  }
+  
+  final_forecast0 <- bind_rows(final_forecast0) %>% 
+      rename(Lo_95 = `Lo 95`,
+             Lo_80 = `Lo 80`,
+             Point_Forecast = `Point Forecast`,
+             Hi_80 = `Hi 80`,
+             Hi_95 = `Hi 95`)
+  final_model0 <- bind_rows(final_model0) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+  
+  final_forecast7 <- bind_rows(final_forecast7) %>% 
+          rename(Lo_95 = `Lo 95`,
+                 Lo_80 = `Lo 80`,
+                 Point_Forecast = `Point Forecast`,
+                 Hi_80 = `Hi 80`,
+                 Hi_95 = `Hi 95`)
+  final_model7 <- bind_rows(final_model7) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+
+
+  city_graph0 <- ggplot(final_forecast0, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("Nowcast for", city))+
+    theme(legend.position = "none")
+#print(city_graph0)
+  city_graph7 <- ggplot(final_forecast7, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("7 Day Forecast for", city))+
+    theme(legend.position = "none")
+
+  legend <- get_legend(
+    ggplot(final_forecast7, aes(x = week)) +
+      geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases")) +
+      geom_line(aes(y = Point_Forecast, color = "Forecast")) +
+      geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3) +
+      geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5) +
+      scale_fill_manual(values = c("95% Confidence" = "yellow", "80% Confidence" = "blue")) +
+      scale_color_manual(values = c("Forecast" = "red")) +
+      scale_shape_manual(values = c("Weekly Cases" = 16)) +
+      labs(fill = "Confidence", color = "Forecast", shape = "True Cases") +
+      theme(legend.position = "right")
+  )
+
+  city_grid <- plot_grid(plot_grid(city_graph0, city_graph7), legend, rel_widths = c(3, 0.4))
+  city_forecast <- list(forecast0 = final_forecast0,
+                        model0 = final_model0,
+                        forecast7 = final_forecast7,
+                        model7 = final_model7,
+                        forecast_graph = city_grid)
+  forecast_city_list[[city]] <- city_forecast
+  message(paste("Finished", city))
+}
+```
+
+```{r}
+forecast_city_list_COVID_Related <- forecast_city_list
+```
+
+```{r}
+save(forecast_city_list_COVID_Related, file = "Environments/forecast_city_list_COVID_Related.RData")
+```
+
+Baseline
+
+```{r}
+forecast_city_list <- list()
+for (city in unique(reddit_and_cases %>% filter(City != "New Orleans") %>% pull(City))) {
+  CityData <- reddit_and_cases %>% filter(City == city)
+  city_forecast0 <- list()
+  city_forecast7 <- list()
+  
+  message(paste("Forecasting ", city))
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_0week_forecasts(cutoff_date = date, city = city, case_lag = 0, reddit_lag = 0)
+    city_forecast0[[as.character(date)]] <- forecast
+    message(paste("Finished nowcast for", date, "in", city))
+  }  
+  
+  for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+    date <- as_date(date)
+    forecast <- get_1week_forecasts(cutoff_date = date, city = city, case_lag = 0, reddit_lag = 0)
+    city_forecast7[[as.character(date)]] <- forecast
+    message(paste("Finished forecast for", date, "in", city))
+  }
+
+  final_forecast0 <- list()
+  final_model0 <- list()
+
+  final_forecast7 <- list()
+  final_model7 <- list()
+
+  for (date in names(city_forecast0)) {
+    forecast0 <- city_forecast0[[date]]$forecast
+    final_forecast0[[date]] <- forecast0
+    model0 <- city_forecast0[[date]]$model
+    final_model0[[date]] <- model0
+  }
+
+  for (date in names(city_forecast7)) {
+    forecast7 <- city_forecast7[[date]]$forecast
+    final_forecast7[[date]] <- forecast7
+    model7 <- city_forecast7[[date]]$model
+    final_model7[[date]] <- model7
+  }
+  
+  final_forecast0 <- bind_rows(final_forecast0) %>% 
+      rename(Lo_95 = `Lo 95`,
+             Lo_80 = `Lo 80`,
+             Point_Forecast = `Point Forecast`,
+             Hi_80 = `Hi 80`,
+             Hi_95 = `Hi 95`)
+  final_model0 <- bind_rows(final_model0) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+  
+  final_forecast7 <- bind_rows(final_forecast7) %>% 
+          rename(Lo_95 = `Lo 95`,
+                 Lo_80 = `Lo 80`,
+                 Point_Forecast = `Point Forecast`,
+                 Hi_80 = `Hi 80`,
+                 Hi_95 = `Hi 95`)
+  final_model7 <- bind_rows(final_model7) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+
+
+  city_graph0 <- ggplot(final_forecast0, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("Nowcast for", city))+
+    theme(legend.position = "none")
+#print(city_graph0)
+  city_graph7 <- ggplot(final_forecast7, aes(x = week))+
+    geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+    geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+    geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+    geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+    scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                 "80% Confidence" = "blue"))+
+    scale_color_manual(values = c("Forecast" = "red"))+
+    scale_shape_manual(values = c("Weekly Cases" = 16))+
+    labs(x = "Week",
+         y = "Weekly Cases",
+         fill = "Confidence",
+         color = "Forecast",
+         shape = "True Cases",
+         title = paste("7 Day Forecast for", city))+
+    theme(legend.position = "none")
+
+  legend <- get_legend(
+    ggplot(final_forecast7, aes(x = week)) +
+      geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases")) +
+      geom_line(aes(y = Point_Forecast, color = "Forecast")) +
+      geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3) +
+      geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5) +
+      scale_fill_manual(values = c("95% Confidence" = "yellow", "80% Confidence" = "blue")) +
+      scale_color_manual(values = c("Forecast" = "red")) +
+      scale_shape_manual(values = c("Weekly Cases" = 16)) +
+      labs(fill = "Confidence", color = "Forecast", shape = "True Cases") +
+      theme(legend.position = "right")
+  )
+
+  city_grid <- plot_grid(plot_grid(city_graph0, city_graph7), legend, rel_widths = c(3, 0.4))
+  city_forecast <- list(forecast0 = final_forecast0,
+                        model0 = final_model0,
+                        forecast7 = final_forecast7,
+                        model7 = final_model7,
+                        forecast_graph = city_grid)
+  forecast_city_list[[city]] <- city_forecast
+  message(paste("Finished", city))
+}
+```
+
+```{r}
+forecast_city_list_Baseline <- forecast_city_list
+```
+
+```{r}
+save(forecast_city_list_Baseline, file = "Environments/forecast_city_list_Baseline.RData")
+```
+
+
+```{r}
+files <- list.files("Environments/Cumulative ARIMA", full.names = T)
+forecasts <- list()
+for (file in files) {
+  explanatory_variable <- gsub(".*_(.*)\\.RData", "\\1", file)
+  forecast0_complete <- list()
+  forecast7_complete <- list()
+  #env <- new.env()  # Create a new environment for loading
+  f <- get(load(file))
+  for (city in names(f)) {
+    forecast0_complete[[city]] <- f[[city]]$forecast0
+    forecast7_complete[[city]] <- f[[city]]$forecast7
+  }
+  forecast0_complete <- bind_rows(forecast0_complete) %>%
+    select(week, City, everything()) %>%
+    mutate(Coverage_95 = ifelse(Weekly_Cases >= Lo_95 & Weekly_Cases <= Hi_95, "yes", "no"),
+           Abs_Error = abs(Weekly_Cases - Point_Forecast),
+           Abs_Pct_Error = (abs(Weekly_Cases - Point_Forecast)/abs(Weekly_Cases))*100) %>%
+    select(week, City, MSA_Code, MSA_Title, Lo_95, Lo_80, Point_Forecast, Hi_80, Hi_95, Weekly_Cases,
+           Coverage_95, Abs_Error, Abs_Pct_Error, everything())
+  forecast7_complete <- bind_rows(forecast7_complete) %>%
+    select(week, City, everything()) %>%
+    mutate(Coverage_95 = ifelse(Weekly_Cases >= Lo_95 & Weekly_Cases <= Hi_95, "yes", "no"),
+           Abs_Error = abs(Weekly_Cases - Point_Forecast),
+           Abs_Pct_Error = (abs(Weekly_Cases - Point_Forecast)/abs(Weekly_Cases))*100) %>%
+    select(week, City, MSA_Code, MSA_Title, Lo_95, Lo_80, Point_Forecast, Hi_80, Hi_95, Weekly_Cases,
+           Coverage_95, Abs_Error, Abs_Pct_Error, everything())
+  forecast0_stats <- forecast0_complete %>%
+    group_by(City) %>%
+    summarize(Coverage_95 = sum(Coverage_95 == "yes")/n(),
+              MAE = mean(Abs_Error),
+              MAPE = mean(Abs_Pct_Error)) %>%
+    mutate(proj_type = "Nowcast",
+           explanatory = explanatory_variable)
+  forecast7_stats <- forecast7_complete %>%
+    group_by(City) %>%
+    summarize(Coverage_95 = sum(Coverage_95 == "yes")/n(),
+              MAE = mean(Abs_Error),
+              MAPE = mean(Abs_Pct_Error)) %>%
+    mutate(proj_type = "Forecast",
+           explanatory = explanatory_variable)
+  forecast_stats <- bind_rows(forecast0_stats, forecast7_stats) %>%
+    mutate(proj_type = as.factor(proj_type))
+  forecasts[[explanatory_variable]] <- forecast_stats
+  #print(explanatory_variable)
+    
+}
+```
+
+```{r}
+forecast_stats_complete <- bind_rows(forecasts) %>% 
+  mutate(explanatory = as.factor(explanatory))
+```
+
+
+Bar graph - 5 bar bar graph, where each bar is of each explanatory variable, x = city, y = Measurement
+
+Bar Graph - double bar graph by nowcast and forecast
+
+One graph of Nowcast, the other of forecast
+
+```{r}
+ggplot(forecast_stats, aes(x = reorder(City, Coverage_95), y = Coverage_95, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(y = "Coverage",
+       title = "95% Coverage by City", 
+       subtitle = "xreg = mean_illness, lagged_mean_illness", 
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+```
+
+Affect Graphs
+```{r}
+p5 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_affect"), aes(x = reorder(City, MAE),
+                                                                                   y = MAE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAE",
+       title = "MAE by City",
+       subtitle = "xreg = mean_affect, lagged_mean_affect",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+
+p6 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_affect") %>% filter(!is.nan(MAPE) & MAPE != Inf),
+             aes(x = reorder(City, MAPE), y = MAPE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAPE",
+       title = "MAPE by City",
+       subtitle = "xreg = mean_affect, lagged_mean_affect",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p7 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_affect"), aes(x = reorder(City, Coverage_95),
+                                                                                   y = Coverage_95, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "Coverage",
+       title = "95% Coverage by City",
+       subtitle = "xreg = mean_affect, lagged_mean_affect",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p5
+p6
+p7
+         
+```
+
+Family Graphs
+
+```{r}
+p8 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_family"), aes(x = reorder(City, MAE),
+                                                                                   y = MAE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAE",
+       title = "MAE by City",
+       subtitle = "xreg = mean_family, lagged_mean_family",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+
+p9 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_family") %>% filter(!is.nan(MAPE) & MAPE != Inf),
+             aes(x = reorder(City, MAPE), y = MAPE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAPE",
+       title = "MAPE by City",
+       subtitle = "xreg = mean_family, lagged_mean_family",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p10 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_family"), aes(x = reorder(City, Coverage_95),
+                                                                                   y = Coverage_95, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "Coverage",
+       title = "95% Coverage by City",
+       subtitle = "xreg = mean_family, lagged_mean_family",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p8
+p9
+p10
+```
+
+
+Health Graphs
+
+```{r}
+p11 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_health"), aes(x = reorder(City, MAE),
+                                                                                   y = MAE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAE",
+       title = "MAE by City",
+       subtitle = "xreg = mean_health, lagged_mean_health",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+
+p12 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_health") %>% filter(!is.nan(MAPE) & MAPE != Inf),
+             aes(x = reorder(City, MAPE), y = MAPE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAPE",
+       title = "MAPE by City",
+       subtitle = "xreg = mean_health, lagged_mean_health",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p13 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_health"), aes(x = reorder(City, Coverage_95),
+                                                                                   y = Coverage_95, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "Coverage",
+       title = "95% Coverage by City",
+       subtitle = "xreg = mean_health, lagged_mean_health",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p11
+p12
+p13
+```
+
+
+Illness Graphs
+
+```{r}
+p14 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_illness"), aes(x = reorder(City, MAE),
+                                                                                   y = MAE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAE",
+       title = "MAE by City",
+       subtitle = "xreg = mean_illness, lagged_mean_illness",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+
+p15 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_illness") %>% filter(!is.nan(MAPE) & MAPE != Inf),
+             aes(x = reorder(City, MAPE), y = MAPE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAPE",
+       title = "MAPE by City",
+       subtitle = "xreg = mean_illness, lagged_mean_illness",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p16 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_illness"), aes(x = reorder(City, Coverage_95),
+                                                                                   y = Coverage_95, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "Coverage",
+       title = "95% Coverage by City",
+       subtitle = "xreg = mean_illness, lagged_mean_illness",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p14
+p15
+p16
+```
+
+
+
+Physical Graphs
+
+```{r}
+p17 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_physical"), aes(x = reorder(City, MAE),
+                                                                                   y = MAE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAE",
+       title = "MAE by City",
+       subtitle = "xreg = mean_physical, lagged_mean_physical",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+
+p18 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_physical") %>% filter(!is.nan(MAPE) & MAPE != Inf),
+             aes(x = reorder(City, MAPE), y = MAPE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAPE",
+       title = "MAPE by City",
+       subtitle = "xreg = mean_physical, lagged_mean_physical",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p19 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_physical"), aes(x = reorder(City, Coverage_95),
+                                                                                   y = Coverage_95, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "Coverage",
+       title = "95% Coverage by City",
+       subtitle = "xreg = mean_physical, lagged_mean_physical",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p17
+p18
+p19
+```
+
+COVID_Related Graphs
+
+```{r}
+p20 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_COVID_Related"), aes(x = reorder(City, MAE),
+                                                                                   y = MAE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAE",
+       title = "MAE by City",
+       subtitle = "xreg = mean_COVID_Related, lagged_mean_COVID_Related",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+
+p21 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_COVID_Related") %>% 
+                filter(!is.nan(MAPE) & MAPE != Inf),
+             aes(x = reorder(City, MAPE), y = MAPE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAPE",
+       title = "MAPE by City",
+       subtitle = "xreg = mean_COVID_Related, lagged_mean_COVID_Related",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p22 <- ggplot(forecast_stats_complete %>% filter(explanatory == "mean_COVID_Related"), aes(x = reorder(City, Coverage_95),
+                                                                                   y = Coverage_95, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "Coverage",
+       title = "95% Coverage by City",
+       subtitle = "xreg = mean_COVID_Related, lagged_mean_COVID_Related",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p20
+p21
+p22
+```
+
+```{r}
+p23 <- ggplot(forecast_stats_complete %>% filter(explanatory == "Baseline"), aes(x = reorder(City, MAE),
+                                                                                   y = MAE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAE",
+       title = "MAE by City",
+       subtitle = "Baseline",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+
+p24 <- ggplot(forecast_stats_complete %>% filter(explanatory == "Baseline") %>% 
+                filter(!is.nan(MAPE) & MAPE != Inf),
+             aes(x = reorder(City, MAPE), y = MAPE, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "MAPE",
+       title = "MAPE by City",
+       subtitle = "Baseline",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p25 <- ggplot(forecast_stats_complete %>% filter(explanatory == "Baseline"), aes(x = reorder(City, Coverage_95),
+                                                                                   y = Coverage_95, fill = proj_type))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+       y = "Coverage",
+       title = "95% Coverage by City",
+       subtitle = "Baseline",
+       fill = "Projection Type")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+p23
+p24
+p25
+```
+
+```{r}
+aggregate_forecast <- forecast_stats_complete %>% 
+  filter(MAPE != Inf & !is.nan(MAPE)) %>% 
+  group_by(explanatory, proj_type) %>% 
+  summarize(MAE = mean(MAE),
+            MAPE = mean(MAPE),
+            Coverage_95 = mean(Coverage_95)) %>% 
+  filter(proj_type == "Forecast") %>% 
+  ungroup() %>% 
+  mutate(Pct_Improvement_MAE = if_else(explanatory != "Baseline",
+                                   ((MAE - MAE[explanatory == "Baseline"]) / MAE[explanatory == "Baseline"]) * 100, 0),
+         Pct_Improvement_MAPE = if_else(explanatory != "Baseline",
+                                   ((MAPE - MAPE[explanatory == "Baseline"]) / MAPE[explanatory == "Baseline"]) * 100, 0),
+         Pct_Improvement_Coverage = if_else(explanatory != "Baseline",
+                                   ((Coverage_95 - Coverage_95[explanatory == "Baseline"]) / Coverage_95[explanatory == "Baseline"]) * 100,
+                                   0)) %>% 
+  select(explanatory, Pct_Improvement_MAE, Pct_Improvement_MAPE, Pct_Improvement_Coverage) %>% 
+  mutate(Pct_Improvement_MAE = round(Pct_Improvement_MAE, 2),
+         Pct_Improvement_MAPE = round(Pct_Improvement_MAPE, 2), 
+         Pct_Improvement_Coverage = round(Pct_Improvement_Coverage, 2)) %>% 
+  arrange(City)
+```
+```{r}
+aggregate_nowcast <- forecast_stats_complete %>% 
+  filter(MAPE != Inf & !is.nan(MAPE)) %>% 
+  group_by(explanatory, proj_type) %>% 
+  summarize(MAE = mean(MAE),
+            MAPE = mean(MAPE),
+            Coverage_95 = mean(Coverage_95)) %>% 
+  filter(proj_type == "Nowcast") %>% 
+  ungroup() %>% 
+  mutate(Pct_Improvement_MAE = if_else(explanatory != "Baseline",
+                                   ((MAE - MAE[explanatory == "Baseline"]) / MAE[explanatory == "Baseline"]) * 100, 0),
+         Pct_Improvement_MAPE = if_else(explanatory != "Baseline",
+                                   ((MAPE - MAPE[explanatory == "Baseline"]) / MAPE[explanatory == "Baseline"]) * 100, 0),
+         Pct_Improvement_Coverage = if_else(explanatory != "Baseline",
+                                   ((Coverage_95 - Coverage_95[explanatory == "Baseline"]) / Coverage_95[explanatory == "Baseline"]) * 100,
+                                   0)) %>% 
+  select(explanatory, Pct_Improvement_MAE, Pct_Improvement_MAPE, Pct_Improvement_Coverage) %>% 
+  mutate(Pct_Improvement_MAE = round(Pct_Improvement_MAE, 2),
+         Pct_Improvement_MAPE = round(Pct_Improvement_MAPE, 2), 
+         Pct_Improvement_Coverage = round(Pct_Improvement_Coverage, 2))
+```
+```{r}
+aggregate_nowcast_city <- forecast_stats_complete %>% 
+  filter(proj_type == "Nowcast") %>% 
+  group_by(City) %>% 
+  mutate(Pct_Improvement_MAE = if_else(explanatory != "Baseline",
+                                   ((MAE - MAE[explanatory == "Baseline"]) / MAE[explanatory == "Baseline"]) * 100, 0),
+         Pct_Improvement_MAPE = if_else(explanatory != "Baseline",
+                                   ((MAPE - MAPE[explanatory == "Baseline"]) / MAPE[explanatory == "Baseline"]) * 100, 0),
+         Pct_Improvement_Coverage = if_else(explanatory != "Baseline",
+                                   ((Coverage_95 - Coverage_95[explanatory == "Baseline"]) / Coverage_95[explanatory == "Baseline"]) * 100,
+                                   0)) %>%
+  select(explanatory, Pct_Improvement_MAE, Pct_Improvement_MAPE, Pct_Improvement_Coverage) %>% 
+  mutate(Pct_Improvement_MAE = round(Pct_Improvement_MAE, 2),
+         Pct_Improvement_MAPE = round(Pct_Improvement_MAPE, 2), 
+         Pct_Improvement_Coverage = round(Pct_Improvement_Coverage, 2)) %>% 
+  arrange(City)
+aggregate_nowcast_city %>% filter(explanatory != "Baseline")
+```
+```{r}
+ggplot(aggregate_nowcast_city %>% filter(explanatory != "Baseline" & Pct_Improvement_Coverage >0), aes(x = City, y = Pct_Improvement_Coverage, fill = explanatory))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  labs(x = "City",
+     y = "Percent Improvement in MAE",
+     title = "MAE by City",
+     fill = "Explanatory")+
+  theme(axis.text.x = element_text(angle = 90, size = 8, hjust = 0.5, vjust = 0.5))
+```
+
+
+##4 Weeks of Training Data
+
+#Reddit
+```{r}
+for (v in variables) {
+  forecast_city_list <- list()
+  
+  for (city in unique(reddit_and_cases %>% filter(City != "New Orleans") %>% pull(City))) {
+    CityData <- reddit_and_cases %>% filter(City == city)
+    city_forecast0 <- list()
+    city_forecast7 <- list()
+  
+    message(paste("Forecasting ", city))
+  
+    for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+      date <- as_date(date)
+      forecast <- get_0week_forecasts(cutoff_date = date, city = city, explanatory = v,
+                                      case_lag = 0, reddit_lag = 1, training_period = 4)
+      city_forecast0[[as.character(date)]] <- forecast
+      message(paste("Finished nowcast for", date, "in", city))
+    }  
+  
+    for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+      date <- as_date(date)
+      forecast <- get_1week_forecasts(cutoff_date = date, city = city, explanatory = v,
+                                      case_lag = 0, reddit_lag = 1, training_period = 4)
+      city_forecast7[[as.character(date)]] <- forecast
+      message(paste("Finished forecast for", date, "in", city))
+    }
+
+    final_forecast0 <- list()
+    final_model0 <- list()
+
+    final_forecast7 <- list()
+    final_model7 <- list()
+
+    for (date in names(city_forecast0)) {
+      forecast0 <- city_forecast0[[date]]$forecast
+      final_forecast0[[date]] <- forecast0
+      model0 <- city_forecast0[[date]]$model
+      final_model0[[date]] <- model0
+    }
+
+    for (date in names(city_forecast7)) {
+      forecast7 <- city_forecast7[[date]]$forecast
+      final_forecast7[[date]] <- forecast7
+      model7 <- city_forecast7[[date]]$model
+      final_model7[[date]] <- model7
+    }
+  
+    final_forecast0 <- bind_rows(final_forecast0) %>% 
+        rename(Lo_95 = `Lo 95`,
+               Lo_80 = `Lo 80`,
+               Point_Forecast = `Point Forecast`,
+               Hi_80 = `Hi 80`,
+               Hi_95 = `Hi 95`)
+    final_model0 <- bind_rows(final_model0) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+  
+    final_forecast7 <- bind_rows(final_forecast7) %>% 
+            rename(Lo_95 = `Lo 95`,
+                   Lo_80 = `Lo 80`,
+                   Point_Forecast = `Point Forecast`,
+                   Hi_80 = `Hi 80`,
+                   Hi_95 = `Hi 95`)
+    final_model7 <- bind_rows(final_model7) %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+
+
+    city_graph0 <- ggplot(final_forecast0, aes(x = week))+
+      geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+      geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+      geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+      geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+      scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                   "80% Confidence" = "blue"))+
+      scale_color_manual(values = c("Forecast" = "red"))+
+      scale_shape_manual(values = c("Weekly Cases" = 16))+
+      labs(x = "Week",
+           y = "Weekly Cases",
+           fill = "Confidence",
+           color = "Forecast",
+           shape = "True Cases",
+           title = paste("Nowcast for", city),
+           subtitle = paste("Training Period:", as.character(training_period), "weeks"))+
+      theme(legend.position = "none")
+#print(city_graph0)
+    city_graph7 <- ggplot(final_forecast7, aes(x = week))+
+      geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases"))+
+      geom_line(aes(y = Point_Forecast, color = "Forecast"))+
+      geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3)+
+      geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5)+
+      scale_fill_manual(values = c("95% Confidence" = "yellow",
+                                   "80% Confidence" = "blue"))+
+      scale_color_manual(values = c("Forecast" = "red"))+
+      scale_shape_manual(values = c("Weekly Cases" = 16))+
+      labs(x = "Week",
+           y = "Weekly Cases",
+           fill = "Confidence",
+           color = "Forecast",
+           shape = "True Cases",
+           title = paste("7 Day Forecast for", city),
+           subtitle = paste("Training Period:", as.character(training_period), "weeks"))+
+      theme(legend.position = "none")
+
+    legend <- get_legend(
+      ggplot(final_forecast7, aes(x = week)) +
+        geom_point(aes(y = Weekly_Cases, shape = "Weekly Cases")) +
+        geom_line(aes(y = Point_Forecast, color = "Forecast")) +
+        geom_ribbon(aes(ymin = Lo_95, ymax = Hi_95, fill = "95% Confidence"), alpha = 0.3) +
+        geom_ribbon(aes(ymin = Lo_80, ymax = Hi_80, fill = "80% Confidence"), alpha = 0.5) +
+        scale_fill_manual(values = c("95% Confidence" = "yellow", "80% Confidence" = "blue")) +
+        scale_color_manual(values = c("Forecast" = "red")) +
+        scale_shape_manual(values = c("Weekly Cases" = 16)) +
+        labs(fill = "Confidence", color = "Forecast", shape = "True Cases") +
+        theme(legend.position = "right")
+    )
+
+    city_grid <- plot_grid(plot_grid(city_graph0, city_graph7), legend, rel_widths = c(3, 0.4))
+    city_forecast <- list(forecast0 = final_forecast0,
+                          model0 = final_model0,
+                          forecast7 = final_forecast7,
+                          model7 = final_model7,
+                          forecast_graph = city_grid)
+    forecast_city_list[[city]] <- city_forecast
+    message(paste("Finished", city))
+  }
+  assign(paste0("forecast_city_list_", v), forecast_city_list)
+  save(list = paste0("forecast_city_list_", v),
+       file = paste0("Environments/NonCumulative ARIMA/4 week/forecast_city_list_", v, ".RData"))
+
+}
+```
+
+#Baseline
+
+##8 Weeks of Training Data
+```{r}
+
+```
+
+```{r}
+variables <- c("mean_Affect", "mean_COVID_Related", "mean_family", "mean_health", "mean_illness", "mean_Physical")
+permutations <- as.data.frame(t(combn(variables, 2))) %>% mutate(Permutation = apply(., 1, function(row) paste(row, collapse = ",")))
+
+for (p in permutations$Permutation) {
+  variables <- as.vector(p)
+  print(variables)
+}
+```
+```{r}
+v <- permutations %>% select(Permutation) %>% slice(1) %>% pull()
+city <- "Atlanta"
+date <- "2020-09-06"
+get_0week_forecasts(cutoff_date = date, city = city, explanatory = c("mean_Affect", "mean_COVID_Related", "mean_family"), reddit_lag = 0)
+CityData <- reddit_and_cases %>% filter(City == city)
+city_forecast0 <- list()
+for (date in CityData %>% filter(week >= "2020-04-01" & week < "2023-03-05") %>% pull(week)) {
+  date <- as_date(date)
+  forecast <- get_0week_forecasts(cutoff_date = date, city = city, explanatory = c("mean_Affect", "mean_COVID_Related"),
+                                  case_lag = 0, reddit_lag = 0, training_period = NULL)
+  city_forecast0[[as.character(date)]] <- forecast
+  message(paste("Finished nowcast for", date, "in", city))
+}
+```
+
 

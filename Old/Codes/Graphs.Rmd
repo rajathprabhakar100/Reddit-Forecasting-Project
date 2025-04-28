@@ -14,6 +14,7 @@ here::set_here()
 ```
 
 ```{r}
+setwd("C:/Users/14049/Desktop/Reddit-Forecasting-Project")
 rank_avg <- read_csv("Results/CSV Files/Average_City_Rank.csv")
 table1 <- read_csv("Results/CSV Files/table_of_average_acf_lag.csv")
 combined <- read_csv("Results/CSV Files/combined_data.csv")
@@ -25,8 +26,7 @@ Positive
 ```{r}
 figure1 <- ggplot(table1, aes(x = reorder(Variable,
                                abs(Average_ACF_positive)),
-                   y = Average_ACF_positive, 
-                   fill = Type))+
+                   y = Average_ACF_positive))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average ACF",
@@ -41,7 +41,7 @@ Negative
 
 ```{r}
 figure2 <- ggplot(table1, aes(x = reorder(Variable, -abs(Average_ACF_negative)),
-                   y = Average_ACF_negative, fill = Type))+
+                   y = Average_ACF_negative))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average ACF",
@@ -57,7 +57,7 @@ Positive
 
 ```{r}
 figure3 <- ggplot(rank_avg, aes(x = reorder(Variable, -abs(avg_rank_pos)),
-                     y = avg_rank_pos, fill = Type))+
+                     y = avg_rank_pos))+
   geom_bar(stat = "identity")+
   coord_flip()+
   labs(x = "Average Rank",

@@ -437,17 +437,48 @@ forecast_reddit_poisson_8 <- function(date = NULL, city, weeks = "3", csv=F) {
   
 }
 
-get_0week_forecasts <- function(cutoff_date, city) {
-  
+get_0week_forecasts <- function(cutoff_date, city, explanatory = NULL, case_lag = 0, reddit_lag = 0) {
+  city_data <- reddit_and_cases %>% 
+    filter(City == city)
   cutoff_date <- as.Date(cutoff_date)
   
-  data_for_fitting <- reddit_and_cases %>% 
-    filter(City == city) %>% 
-    filter(week < cutoff_date) %>% 
-    select(week, mean_COVID_Related, Weekly_Cases)
-  data_for_predicting <- reddit_and_cases %>% 
-    filter(City == city) %>% 
-    filter(week == cutoff_date) 
+  if (!is.null(explanatory)) {
+    explanatory <- as.character(explanatory)
+    invalid_vars <- setdiff(explanatory, colnames(reddit_and_cases))
+
+    if (length(invalid_vars) > 0) {
+      stop(paste("The following variables are not in the data frame:", paste(invalid_vars, collapse = ", ")))
+    }
+    
+  }
+  ##Check Case Lag##
+  if (case_lag > 0) {
+    city_data <- city_data %>% 
+      mutate(!!!set_names(map(1:case_lag, ~ lag(city_data$Weekly_Cases, .x)), paste0("Weekly_Cases", 1:case_lag)))
+    }
+    
+  else if (case_lag < 0) {
+    stop("Invalid case lag")
+  }
+  
+  ##Check Reddit Lag##
+  if (reddit_lag > 0) {
+    for (var in explanatory) {
+      city_data <- city_data %>% 
+        mutate(!!!set_names(map(1:reddit_lag, ~lag(city_data[[var]], .x)), paste0(var, 1:reddit_lag)))
+    }
+  }
+  
+  else if (reddit_lag < 0) {
+    stop("Invalid reddit lag")
+  }
+
+  data_for_fitting <- city_data %>%
+    filter(week < cutoff_date)
+
+  data_for_predicting <- city_data %>% 
+    filter(week == cutoff_date)
+
   if (all(data_for_fitting$Weekly_Cases == 0)) {
     # Directly return zero forecast if all cases are zero
     fcast <- data_for_predicting %>%
@@ -455,95 +486,145 @@ get_0week_forecasts <- function(cutoff_date, city) {
   } 
   
   else {
-    # Otherwise, perform the ARIMA forecast
-    full_fit <- suppressWarnings(auto.arima(data_for_fitting$Weekly_Cases,
-                                            xreg = as.matrix(data_for_fitting$mean_COVID_Related)))
+    
+    if (!is.null(explanatory)) {
+      full_fit <- suppressWarnings(auto.arima(data_for_fitting$Weekly_Cases,
+                                              xreg = data_for_fitting %>% select(starts_with(explanatory),
+                                                                                 matches("^Weekly_Cases\\d+$")) %>% 
+                                                as.matrix()))
+    }
+    
+    else {
+      full_fit <- suppressWarnings(auto.arima(data_for_fitting$Weekly_Cases))
+    }
+    
     model_coeffs <- coef(full_fit)
     
     # Initialize a row with the cutoff date and xreg (external regressor) coefficient
-    row <- data.frame(date = format(cutoff_date, "%Y-%m-%d"),  # Format date here
-                      xreg = ifelse("xreg" %in% names(model_coeffs), model_coeffs["xreg"], NA))
+    row <- data.frame(date = format(cutoff_date, "%Y-%m-%d"))
     
     # Loop through coefficients and dynamically add AR and MA terms to the row
     for (name in names(model_coeffs)) {
-      if (grepl("ar", name) || grepl("ma", name)) {
-        row[[name]] <- model_coeffs[name]
-      }
+      row[[name]] <- model_coeffs[name]
     }
     
-    row <- row %>% select(date, xreg, starts_with("ar"), starts_with("ma"))
+    row <- row %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+    
+    if (!is.null(explanatory)) {
+      xreg_predict <- data_for_predicting %>% select(starts_with(explanatory),
+                                                     matches("^Weekly_Cases\\d+$")) %>%
+        as.matrix()
+    }
+    
+    else {
+      xreg_predict <- NULL
+    }
+    
     
     fcast <- suppressWarnings(forecast(full_fit,
                                           h = nrow(data_for_predicting),
-                                          xreg = as.matrix(data_for_predicting$mean_COVID_Related))) %>%
+                                          xreg = xreg_predict)) %>%
       as_tibble() %>%
       bind_cols(data_for_predicting) %>% 
       mutate_at(vars(`Point Forecast`:`Hi 95`), function(x) {ifelse(x < 0, 0, x)}) %>% 
-      select(week, MSA_Code, MSA_Title, `Lo 95`, `Lo 80`, `Point Forecast`, `Hi 80`, `Hi 95`, Weekly_Cases, everything())
+      select(week, MSA_Code, MSA_Title, `Lo 95`, `Lo 80`,
+             `Point Forecast`, `Hi 80`, `Hi 95`, Weekly_Cases, everything())
   }
+  
   results <- list(forecast = fcast,
                   model = row)
 
   return(results)
 }
 
-get_1week_forecasts <- function(cutoff_date, city) {
-  data_for_fitting <- reddit_and_cases %>% 
-    filter(City == city) %>% 
-    filter(week < cutoff_date) #%>% 
-    # select(week, mean_COVID_Related, Weekly_Cases)
-  data_for_predicting <- reddit_and_cases %>% 
-    filter(City == city) %>% 
-    filter(week == ymd(cutoff_date) + days(7)) #%>% 
-  #select(week, mean_COVID_Related, Weekly_Cases)
+get_1week_forecasts <- function(cutoff_date, city, explanatory = NULL, case_lag = 0, reddit_lag = 0,
+                                training_period = NULL) {
   
-  if (nrow(data_for_fitting) <= 1) {
-    warning("Insufficient data available for fitting at cutoff date: ", cutoff_date)
-    return(NULL)
-  }
+  city_data <- reddit_and_cases %>% 
+    filter(City == city)
   
-  if (!is.numeric(data_for_fitting$Weekly_Cases) || all(is.na(data_for_fitting$Weekly_Cases))) {
-    stop("Weekly_Cases is either non-numeric or contains only NAs for cutoff date: ", cutoff_date)
-  }
+  cutoff_date <- as.Date(cutoff_date)
   
-  if (ncol(as.matrix(data_for_fitting$mean_COVID_Related)) == 0) {
-    stop("mean_COVID_Related is empty for cutoff date: ", cutoff_date)
-  }
-  
-  suppressWarnings(full_fit <- auto.arima(ts(data_for_fitting$Weekly_Cases, frequency = 52),
-                         xreg = as.matrix(data_for_fitting$mean_COVID_Related)))
-  
-  if (nrow(data_for_predicting) == 0 || ncol(as.matrix(data_for_predicting$mean_COVID_Related)) == 0) {
-    warning("No data available for prediction at cutoff date: ", cutoff_date)
-    return(NULL)
-  }
-  
-  model_coeffs <- coef(full_fit)
-  
-  # Initialize a row with the cutoff date and xreg (external regressor) coefficient
-  row <- data.frame(date = format(cutoff_date, "%Y-%m-%d"),  # Format date here
-                    xreg = ifelse("xreg" %in% names(model_coeffs), model_coeffs["xreg"], NA))
-  
-  # Loop through coefficients and dynamically add AR and MA terms to the row
-  for (name in names(model_coeffs)) {
-    if (grepl("ar", name) || grepl("ma", name)) {
-      row[[name]] <- model_coeffs[name]
+  if (!is.null(explanatory)) {
+    explanatory <- as.character(explanatory)
+    
+    if (!(explanatory %in% colnames(reddit_and_cases))) {
+      stop(paste(explanatory, "not in data frame."))
+    }
+    
+    ##Check Case Lag##
+    if (case_lag > 0) {
+      city_data <- city_data %>% 
+        mutate(!!!set_names(map(1:case_lag, ~ lag(city_data$Weekly_Cases, .x)),
+                            paste0("Weekly_Cases", 1:case_lag)))
+    }
+    else if (case_lag < 0) {
+      stop("Invalid case lag")
+    }
+    
+    #Check Reddit Lag##
+    if (reddit_lag > 0) {
+      city_data <- city_data %>% 
+        mutate(!!!set_names(map(1:reddit_lag, ~ lag(city_data[[explanatory]], .x)),
+                            paste0(explanatory, 1:reddit_lag)))
+    }
+    
+    else if (reddit_lag < 0) {
+      stop("Invalid reddit lag")
     }
   }
+  data_for_fitting <- city_data %>%
+    filter(week < cutoff_date)
   
-  row <- row %>% select(date, xreg, starts_with("ar"), starts_with("ma"))
+  data_for_predicting <- city_data %>% 
+    filter(week == cutoff_date + weeks(1))
   
-  fcast <- suppressWarnings(forecast(full_fit,
-                    h = nrow(data_for_predicting),
-                    xreg = as.matrix(data_for_predicting$mean_COVID_Related))) %>%
-    as_tibble() %>%
-    bind_cols(data_for_predicting) %>% 
-    mutate_at(vars(`Point Forecast`:`Hi 95`), function(x) {ifelse(x < 0, 0, x)}) %>% 
-    select(week, MSA_Code, MSA_Title, `Lo 95`, `Lo 80`, `Point Forecast`, `Hi 80`, `Hi 95`, Weekly_Cases, everything())
+
+  if (all(data_for_fitting$Weekly_Cases == 0)) {
+    # Directly return zero forecast if all cases are zero
+    fcast <- data_for_predicting %>%
+      mutate(`Point Forecast` = 0, `Lo 95` = 0, `Lo 80` = 0, `Hi 80` = 0, `Hi 95` = 0)
+  } 
   
-  results <- list(forecast = fcast,
-                  model = row)
+  else {
+    if (!is.null(explanatory)) {
+      xreg <- data_for_fitting %>% 
+        select(matches("^Weekly_Cases\\d+$"), starts_with(explanatory)) %>% 
+        as.matrix()
+      
+      full_fit <- suppressWarnings(auto.arima(data_for_fitting$Weekly_Cases, xreg = xreg))
+    }
+    
+    else {
+      full_fit <- suppressWarnings(auto.arima(data_for_fitting$Weekly_Cases))
+    }
+    
+    
+    if (!is.null(explanatory)) {
+      xreg_predict <- data_for_predicting %>% 
+        select(matches("^Weekly_Cases\\d+$"), starts_with(explanatory)) %>% 
+        as.matrix()
+    } 
+    
+    else {
+      xreg_predict <- NULL
+    }
+    
+    fcast <- suppressWarnings(forecast(full_fit, h = 1, xreg = xreg_predict)) %>%
+      as_tibble() %>%
+      bind_cols(data_for_predicting) %>% 
+      mutate(across(`Point Forecast`:`Hi 95`, ~ ifelse(. < 0, 0, .))) %>% 
+      select(week, MSA_Code, MSA_Title, `Lo 95`, `Lo 80`, `Point Forecast`, `Hi 80`, `Hi 95`, Weekly_Cases, everything())
+  }
+  
+  # Collect model coefficients
+  model_coeffs <- coef(full_fit)
+  row <- data.frame(date = format(cutoff_date, "%Y-%m-%d"))
+  for (name in names(model_coeffs)) {
+    row[[name]] <- model_coeffs[name]
+  }
+  row <- row %>% select(date, starts_with("ar"), starts_with("ma"), everything())
+  
+  results <- list(forecast = fcast, model = row)
   return(results)
-  #print(data_for_predicting)
-  
 }
