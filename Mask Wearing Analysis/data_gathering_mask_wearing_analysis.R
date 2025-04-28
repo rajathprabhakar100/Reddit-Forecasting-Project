@@ -4,9 +4,6 @@ library(cowplot)
 library(here)
 library(data.table)
 library(readxl)
-stl <- fread("Source Data/01 - Raw/merged_stlouis.csv")
-
-stl1 <- head(stl, 10000)
 nyc_reddit <- read_csv("Mask Wearing Analysis/nycCOVID.txt") %>% 
   mutate(Date = as.Date(date_of_interest, format = "%m/%d/%Y")) %>%
   mutate(week = floor_date(Date, unit = "week", week_start = 7)) %>%
@@ -80,99 +77,20 @@ nyc_master <- left_join(mobility, mask_nyc, by = "date") %>%
   mutate(across(-week, ~ scale(.))) %>%
   select(week, cases, hospitalizations, deaths, everything())
 
-graph_reddit <- function(data, x, y, type = NULL, lag_value = 0, variable_to_lag = c("x", "y")) {
-  #Check x is valid
-  if (!x %in% names(data)) {
-    stop("x not in data frame")
-  }
-  
-  #Check y is valid
-  if (!y %in% names(data)) {
-    stop("y not in data frame")
-  }
-  
-  #Check type is valid
-  available_geoms <- ls(pattern = "^geom_", envir = asNamespace("ggplot2"))
-  allowed_geoms <- gsub("^geom_", "", available_geoms)
-  if (!is.null(type)) {
-    if (!type %in% allowed_geoms) {
-      stop("Invalid type. Available geoms: ", paste(allowed_geoms, collapse = ", "))
-    }
-  } 
-  
-  else {
-    ggplot2::ggplot(data, ggplot2::aes(!!sym(x), !!sym(y)))
-  }
-  
-  #Check lag and variable_to_lag is specified
-  if (lag_value < 0) {
-    stop("lag_value cannot be less than 0")
-  }
-
-  else if (lag_value > 0) {
-    if (!all(variable_to_lag %in% c("x", "y"))) {
-      stop("variable_to_lag not specified")
-    }
-    else {
-      data1 <- data %>%
-        mutate(
-          !!x := if ("x" %in% variable_to_lag) lag(.data[[x]], lag_value) else .data[[x]],
-          !!y := if ("y" %in% variable_to_lag) lag(.data[[y]], lag_value) else .data[[y]]
-        )
-    }
-
-  }
-  
-  else {
-    data1 <- data
-  }
-
-
-  #Plot
-  
-
-  geom_func <- get(paste0("geom_", type), envir = asNamespace("ggplot2"))
-  
-  p <- ggplot(data1, aes(!!sym(x), !!sym(y))) + 
-    geom_func()
-  p <- p + 
-    labs(x = x,
-         y = y,
-         title = paste(x, "vs.", y),
-         subtitle = paste(x, "lag =", as.character(lag_value)))
-  return(p)
-}
-
-lags <- c(0, 1, 2)
-reddit_variables = c("mean_cogproc", "mean_emo_anx", "mean_Analytic")
-variables_list <- list()
-for (v in reddit_variables) {
-  lag_list <- list()
-  for (i in lags) {
-    label_name <- paste0("lag", i)
-    x <- graph_reddit(nyc_master, x = v, y = "mask_use_mean", type = "point", lag_value = i, variable_to_lag = "x")
-    lag_list[[label_name]] <- x
-  }
-  p <- plot_grid(lag_list$lag0, lag_list$lag1, lag_list$lag2, nrow = 1, align = "h") 
-  variables_list[[v]] <- p
-}
-variables_list$mean_cogproc
-variables_list$mean_emo_anx
-variables_list$mean_Analytic
 nyc_master_long <- nyc_master %>% pivot_longer(cols = -week, names_to = "variable", values_to = "value")
 
 
-reddit <- ggplot(nyc_master %>% filter(variable %in% c("mean_Analytic", "mean_cogproc", "mean_emo_anger", "mean_emo_anx")),
+reddit <- ggplot(nyc_master_long %>% filter(variable %in% c("mean_Analytic", "mean_cogproc", "mean_emo_anger", "mean_emo_anx")),
                  aes(x = week, y = value, color = variable))+
   geom_line()+
   scale_x_date(date_breaks = "month")+
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
-behavior <- ggplot(nyc_master %>% filter(variable %in% c("bars_visit_prop", "restaurants_visit_num")), 
+behavior <- ggplot(nyc_master_long %>% filter(variable %in% c("bars_visit_prop", "restaurants_visit_num")), 
                    aes(x = week, y = value, color = variable))+
   geom_line()+
   scale_x_date(date_breaks = "month")+
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
-epi <- ggplot(nyc_master %>% filter(variable %in% c("cases", "deaths", "hospitalizations")), 
+epi <- ggplot(nyc_master_long %>% filter(variable %in% c("cases", "deaths", "hospitalizations")), 
               aes(x = week, y = value, colour = variable))+
   geom_line()+
   scale_x_date(date_breaks = "month")+
@@ -296,3 +214,82 @@ save_plot("nyc_behavioral_plot.png", nyc_grid, base_width = 8, base_height = 8)
 
 
 
+graph_reddit <- function(data, x, y, type = NULL, lag_value = 0, variable_to_lag = c("x", "y")) {
+  #Check x is valid
+  if (!x %in% names(data)) {
+    stop("x not in data frame")
+  }
+  
+  #Check y is valid
+  if (!y %in% names(data)) {
+    stop("y not in data frame")
+  }
+  
+  #Check type is valid
+  available_geoms <- ls(pattern = "^geom_", envir = asNamespace("ggplot2"))
+  allowed_geoms <- gsub("^geom_", "", available_geoms)
+  if (!is.null(type)) {
+    if (!type %in% allowed_geoms) {
+      stop("Invalid type. Available geoms: ", paste(allowed_geoms, collapse = ", "))
+    }
+  } 
+  
+  else {
+    ggplot2::ggplot(data, ggplot2::aes(!!sym(x), !!sym(y)))
+  }
+  
+  #Check lag and variable_to_lag is specified
+  if (lag_value < 0) {
+    stop("lag_value cannot be less than 0")
+  }
+  
+  else if (lag_value > 0) {
+    if (!all(variable_to_lag %in% c("x", "y"))) {
+      stop("variable_to_lag not specified")
+    }
+    else {
+      data1 <- data %>%
+        mutate(
+          !!x := if ("x" %in% variable_to_lag) lag(.data[[x]], lag_value) else .data[[x]],
+          !!y := if ("y" %in% variable_to_lag) lag(.data[[y]], lag_value) else .data[[y]]
+        )
+    }
+    
+  }
+  
+  else {
+    data1 <- data
+  }
+  
+  
+  #Plot
+  
+  
+  geom_func <- get(paste0("geom_", type), envir = asNamespace("ggplot2"))
+  
+  p <- ggplot(data1, aes(!!sym(x), !!sym(y))) + 
+    geom_func()
+  p <- p + 
+    labs(x = x,
+         y = y,
+         title = paste(x, "vs.", y),
+         subtitle = paste(x, "lag =", as.character(lag_value)))
+  return(p)
+}
+
+lags <- c(0, 1, 2)
+reddit_variables = c("mean_cogproc", "mean_emo_anx", "mean_Analytic")
+variables_list <- list()
+for (v in reddit_variables) {
+  lag_list <- list()
+  for (i in lags) {
+    label_name <- paste0("lag", i)
+    x <- graph_reddit(nyc_master, x = v, y = "mask_use_mean", type = "point", lag_value = i, variable_to_lag = "x")
+    lag_list[[label_name]] <- x
+  }
+  p <- plot_grid(lag_list$lag0, lag_list$lag1, lag_list$lag2, nrow = 1, align = "h") 
+  variables_list[[v]] <- p
+}
+variables_list$mean_cogproc
+variables_list$mean_emo_anx
+variables_list$mean_Analytic
